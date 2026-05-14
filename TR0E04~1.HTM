@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrustedStays Distribution Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Supabase JS client (used only if SUPABASE_URL is configured below) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --burnt-orange: #C35037;
+    --peach: #E68760;
+    --navy: #344167;
+    --navy-light: #7B8AAB;
+    --navy-deep: #1F2742;
+    --mint: #95C89D;
+    --mint-bright: #B4DCB9;
+    --hint-of-mint: #F1F6EB;
+    --leisure-blue: #A8C0E0;
+    --amadeus-blue: #005EB8;
+    --amadeus-light: #5BC2E7;
+    --amadeus-deep: #003B7A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--hint-of-mint); color: var(--navy); min-height: 100vh; }
+  body { display: flex; flex-direction: column; align-items: center; padding: 20px 16px 30px; }
+  header { text-align: center; margin-bottom: 16px; max-width: 720px; }
+  h1 { margin: 0 0 6px; font-family: 'Press Start 2P', monospace; font-size: 18px; color: var(--navy); line-height: 1.4; }
+  .subtitle { color: var(--navy); opacity: 0.7; font-size: 13px; font-weight: 300; }
+  .cabinet { position: relative; width: 700px; max-width: 100%; padding: 14px; background: linear-gradient(180deg, var(--mint) 0%, #7DB385 100%); border-radius: 14px; box-shadow: 0 12px 30px rgba(52,65,103,0.18), inset 0 0 0 2px rgba(255,255,255,0.3); }
+  .cabinet::before { content: ''; position: absolute; inset: 6px; border: 2px solid rgba(255,255,255,0.4); border-radius: 10px; pointer-events: none; }
+  .screen-wrap { position: relative; width: 100%; border-radius: 6px; overflow: hidden; background: var(--navy-deep); box-shadow: inset 0 0 30px rgba(0,0,0,0.5), 0 0 0 3px var(--navy); }
+  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .scanlines { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.10) 3px, rgba(0,0,0,0) 4px); z-index: 2; border-radius: 6px; mix-blend-mode: multiply; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.35) 100%); z-index: 3; border-radius: 6px; }
+  .controls-strip { margin-top: 12px; background: var(--navy-deep); border-radius: 6px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; color: var(--mint); font-family: 'Press Start 2P', monospace; font-size: 9px; letter-spacing: 0.05em; flex-wrap: wrap; gap: 8px; }
+  .controls-strip span { color: var(--peach); }
+  .controls-strip .lb-link { color: var(--mint-bright); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; background: none; border: none; font: inherit; padding: 0; }
+  .controls-strip .lb-link:hover { color: var(--peach); }
+
+  .overlay { position: absolute; inset: 0; background: rgba(31, 39, 66, 0.97); display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; padding: 20px; text-align: center; z-index: 5; overflow-y: auto; }
+  .overlay h2 { font-family: 'Press Start 2P', monospace; margin: 0 0 12px; color: var(--mint-bright); font-size: 18px; line-height: 1.5; text-shadow: 0 0 12px rgba(149,200,157,0.4); }
+  .overlay p { margin: 5px 0; font-size: 12px; line-height: 1.55; color: white; max-width: 580px; font-weight: 300; }
+
+  .tut-slide { display: none; flex-direction: column; align-items: center; gap: 10px; max-width: 580px; }
+  .tut-slide.active { display: flex; }
+  .tut-progress { display: flex; gap: 6px; margin: 6px 0; }
+  .tut-dot { width: 8px; height: 8px; background: rgba(149,200,157,0.3); border-radius: 50%; }
+  .tut-dot.active { background: var(--peach); }
+  .tut-visual { width: 100%; max-width: 360px; height: 130px; background: var(--navy-deep); border: 2px solid var(--mint); border-radius: 4px; display: flex; align-items: center; justify-content: center; margin: 6px 0; position: relative; overflow: hidden; }
+  .tut-criteria { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 540px; }
+  .tut-section { background: rgba(149,200,157,0.08); border: 1px solid rgba(149,200,157,0.25); border-radius: 4px; padding: 10px 14px; text-align: left; }
+  .tut-section.collect-both { border-color: rgba(230,135,96,0.35); background: rgba(230,135,96,0.08); }
+  .tut-section-title { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--peach); margin: 0 0 6px; text-align: center; letter-spacing: 0.06em; }
+  .tut-section.collect-both .tut-section-title { color: var(--mint-bright); }
+  .tut-list { margin: 4px 0 0; padding: 0; list-style: none; }
+  .tut-list li { font-size: 11px; color: white; line-height: 1.55; padding: 3px 0 3px 16px; position: relative; }
+  .tut-list li::before { content: '>'; position: absolute; left: 2px; color: var(--mint); font-family: 'Press Start 2P', monospace; font-size: 9px; top: 4px; }
+  .tut-list strong { color: var(--mint-bright); font-weight: 500; }
+
+  .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin: 10px 0 4px; font-size: 11px; color: white; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 2px; image-rendering: pixelated; }
+
+  button.arcade { background: var(--burnt-orange); color: white; border: none; padding: 12px 22px; border-radius: 4px; font-family: 'Press Start 2P', monospace; font-size: 11px; cursor: pointer; margin: 4px; box-shadow: 0 4px 0 #8B321F; transition: transform 0.08s, box-shadow 0.08s; }
+  button.arcade:hover, button.arcade:focus { background: #d35f44; outline: 3px solid var(--mint-bright); outline-offset: 2px; }
+  button.arcade:active { transform: translateY(2px); box-shadow: 0 2px 0 #8B321F; }
+  button.arcade.secondary { background: var(--navy); box-shadow: 0 4px 0 #1F2742; }
+  button.arcade.secondary:hover, button.arcade.secondary:focus { background: #455282; outline: 3px solid var(--mint-bright); outline-offset: 2px; }
+  button.arcade.secondary:active { box-shadow: 0 2px 0 #1F2742; }
+  button.arcade:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .final-score { font-family: 'Press Start 2P', monospace; font-size: 36px; color: var(--peach); margin: 8px 0; line-height: 1; text-shadow: 0 0 16px rgba(230,135,96,0.6); }
+
+  .score-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 380px; margin: 12px auto 4px; }
+  .score-form input[type="text"], .score-form input[type="email"] { background: var(--navy-deep); border: 2px solid var(--mint); color: var(--mint-bright); padding: 10px 12px; border-radius: 4px; font-family: 'Press Start 2P', monospace; font-size: 11px; text-align: center; outline: none; }
+  .score-form input[type="text"] { text-transform: uppercase; }
+  .score-form input[type="email"] { text-transform: lowercase; }
+  .score-form input:focus { border-color: var(--peach); }
+  .score-form .consent-row { display: flex; align-items: flex-start; gap: 10px; text-align: left; font-size: 11px; color: white; line-height: 1.4; background: rgba(149,200,157,0.08); padding: 10px; border-radius: 4px; border: 1px solid rgba(149,200,157,0.2); }
+  .score-form input[type="checkbox"] { margin-top: 2px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--burnt-orange); }
+  .score-form .privacy { font-size: 10px; color: var(--mint); opacity: 0.85; line-height: 1.45; text-align: center; }
+  .form-actions { display: flex; gap: 8px; justify-content: center; margin-top: 4px; flex-wrap: wrap; }
+  .save-status { font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--mint-bright); margin-top: 4px; min-height: 14px; }
+  .save-status.warn { color: var(--peach); }
+  .save-status.success { color: var(--mint-bright); font-size: 11px; }
+
+  .lb-table { width: 100%; max-width: 580px; margin: 8px auto 12px; border-collapse: collapse; font-family: 'Press Start 2P', monospace; font-size: 9px; color: white; }
+  .lb-table th { background: var(--mint); color: var(--navy-deep); padding: 8px 6px; font-size: 9px; letter-spacing: 0.05em; }
+  .lb-table td { padding: 7px 6px; border-bottom: 1px solid rgba(149,200,157,0.18); text-align: center; }
+  .lb-table .name-cell { text-align: left; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-table tr.you td { background: rgba(195,80,55,0.40); color: white; font-weight: bold; }
+  .lb-table .gds-yes { color: var(--peach); }
+  .lb-table .gds-no { color: rgba(149,200,157,0.4); }
+  .lb-empty { font-size: 11px; color: var(--mint); margin: 20px 0; font-style: italic; }
+  .lb-scroll { max-height: 320px; overflow-y: auto; width: 100%; }
+  .lb-banner { background: linear-gradient(135deg, var(--burnt-orange), var(--peach)); padding: 10px; border-radius: 4px; font-family: 'Press Start 2P', monospace; font-size: 10px; color: white; margin: 0 auto 10px; max-width: 400px; }
+
+  .footer { margin-top: 14px; font-size: 11px; color: var(--navy); opacity: 0.5; font-family: 'Press Start 2P', monospace; letter-spacing: 0.05em; }
+  .key-hint { font-size: 9px; color: var(--mint); opacity: 0.75; margin-top: 6px; }
+  @media (max-width: 740px) { .cabinet { width: 100%; padding: 8px; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>TRUSTEDSTAYS<br>DISTRIBUTION RUN</h1>
+    <div class="subtitle">Acquire guests with your tractor beam · Stack rate codes &amp; accreditations · Unlock Amadeus GDS</div>
+  </header>
+  <div class="cabinet">
+    <div class="screen-wrap">
+      <canvas id="game" width="700" height="780"></canvas>
+      <div class="scanlines"></div>
+      <div class="vignette"></div>
+
+      <!-- TUTORIAL -->
+      <div class="overlay" id="overlay-tutorial">
+        <div class="tut-slide active" data-slide="0">
+          <h2>HOW TO PLAY</h2>
+          <p>You are a TrustedStays property. Your goal: <strong>acquire guests, fulfil every power-up category, unlock Amadeus GDS.</strong></p>
+          <div class="tut-visual" id="tut-visual-1"></div>
+          <p style="font-size:11px;opacity:0.85">Move with <strong>arrow keys</strong>, <strong>A/D</strong>, or <strong>mouse</strong>. Tractor beam pulls guests in. Press <strong>ESC</strong> any time to return to the menu.</p>
+        </div>
+        <div class="tut-slide" data-slide="1">
+          <h2>HOW TO SCORE POINTS</h2>
+          <p>Catch <strong>guests</strong> in your tractor beam to score. The little pixel-art figures with backpacks or briefcases are guests — pull them in to add their points.</p>
+          <div class="tut-visual" id="tut-visual-2"></div>
+          <div class="legend">
+            <div class="legend-item"><span class="swatch" style="background:#A8C0E0"></span>Leisure guest 1pt</div>
+            <div class="legend-item"><span class="swatch" style="background:#E68760"></span>Corporate guest 5pts (briefcase)</div>
+            <div class="legend-item"><span class="swatch" style="background:#B4DCB9;border-radius:50%"></span>Bonus event</div>
+          </div>
+          <p style="font-size:11px;opacity:0.85">Sparkle <strong>bonus events</strong> drop peak-season 2x multipliers or extra guests. Rate codes (BAR/COR) boost guest values further.</p>
+        </div>
+        <div class="tut-slide" data-slide="2">
+          <h2>WATCH FOR HAZARDS</h2>
+          <div class="tut-visual" id="tut-visual-3"></div>
+          <div class="legend">
+            <div class="legend-item"><span class="swatch" style="background:#344167;border:1px solid #95C89D"></span>Market factor</div>
+            <div class="legend-item"><span class="swatch" style="background:#344167;border:1px solid #C35037"></span>GDS barrier</div>
+          </div>
+          <p style="font-size:11px;opacity:0.85">GDS barriers (technical, legal, contract, implementation) are exactly what TrustedStays clears for suppliers — your tractor beam can't pull them in, you have to dodge them.</p>
+        </div>
+        <div class="tut-slide" data-slide="3">
+          <h2>UNLOCK AMADEUS GDS</h2>
+          <p style="color:#E68760;font-weight:500">Fulfil EVERY criterion below to trigger the Amadeus GDS surge:</p>
+          <div class="tut-criteria">
+            <div class="tut-section">
+              <div class="tut-section-title">COLLECT ONE OF</div>
+              <ul class="tut-list">
+                <li><strong>Accreditation</strong> — collect one of: Quality in Tourism, ISAAP, or VisitBritain</li>
+                <li><strong>Industry Membership</strong> — collect one of: STAA or ARL</li>
+                <li><strong>Property Management System</strong> — collect one of: Hospiria or Guesty</li>
+              </ul>
+            </div>
+            <div class="tut-section collect-both">
+              <div class="tut-section-title">COLLECT BOTH</div>
+              <ul class="tut-list">
+                <li><strong>Rate Access Codes</strong> — collect both: BAR (Best Available Rate) AND COR (Corporate Rate)</li>
+                <li><strong>Policies</strong> — collect both: 24 Hour Cancellation AND 1 Night Length of Stay</li>
+              </ul>
+            </div>
+          </div>
+          <p style="font-size:11px;opacity:0.9;margin-top:6px">"Collect ONE OF" categories drop all options together — catch any one. "Collect BOTH" categories require both items.</p>
+        </div>
+        <div class="tut-progress" id="tut-progress">
+          <div class="tut-dot active"></div><div class="tut-dot"></div><div class="tut-dot"></div><div class="tut-dot"></div>
+        </div>
+        <div class="form-actions">
+          <button class="arcade secondary" id="tut-back" onclick="prevTutorial()" disabled>BACK</button>
+          <button class="arcade" id="tut-next" onclick="nextTutorial()">NEXT</button>
+          <button class="arcade secondary" onclick="skipTutorial()">SKIP &amp; PLAY</button>
+        </div>
+        <div class="key-hint">← / → navigate slides · ↑ / ↓ navigate buttons · ENTER select · ESC skip</div>
+      </div>
+
+      <!-- START / TITLE -->
+      <div class="overlay" id="overlay-start" style="display:none">
+        <h2>READY<br>PLAYER<br>ONE</h2>
+        <p>Acquire guests. Fulfil every power-up criterion to unlock the Amadeus GDS surge.</p>
+        <div class="legend">
+          <div class="legend-item"><span class="swatch" style="background:#A8C0E0"></span>Leisure 1pt</div>
+          <div class="legend-item"><span class="swatch" style="background:#E68760"></span>Corporate 5pts</div>
+          <div class="legend-item"><span class="swatch" style="background:#344167;border:1px solid #95C89D"></span>Market factor</div>
+          <div class="legend-item"><span class="swatch" style="background:#344167;border:1px solid #C35037"></span>GDS barrier</div>
+          <div class="legend-item"><span class="swatch" style="background:#B4DCB9;border-radius:50%"></span>Bonus event</div>
+        </div>
+        <div style="margin-top:12px">
+          <button class="arcade" id="btn-start" onclick="startGame()">PRESS START</button>
+          <button class="arcade secondary" onclick="showTutorial()">TUTORIAL</button>
+          <button class="arcade secondary" onclick="showLeaderboard()">LEADERBOARD</button>
+        </div>
+        <div class="key-hint">↑ / ↓ navigate · ENTER select · T tutorial · L leaderboard</div>
+      </div>
+
+      <!-- END / SUBMIT SCORE -->
+      <div class="overlay" id="overlay-end" style="display:none">
+        <h2 id="end-title">TIME<br>UP</h2>
+        <div style="font-family:'Press Start 2P',monospace;color:#B4DCB9;font-size:10px">FINAL SCORE</div>
+        <div class="final-score" id="end-score">00000</div>
+        <div style="font-family:'Press Start 2P',monospace;color:#95C89D;font-size:9px;margin-bottom:6px">HI-SCORE <span id="end-hi">00000</span></div>
+        <p id="end-note"></p>
+        <form class="score-form" id="score-form" autocomplete="off">
+          <input type="text" id="player-name" name="name" placeholder="YOUR NAME" maxlength="16" required>
+          <input type="email" id="player-email" name="email" placeholder="email (optional)">
+          <label class="consent-row">
+            <input type="checkbox" id="player-consent">
+            <span>I'd like TrustedStays to contact me about products, services, and updates. (You can unsubscribe at any time.)</span>
+          </label>
+          <div class="privacy">Your name and score appear on this device's leaderboard. Email is stored only if marketing consent is ticked.</div>
+          <div class="form-actions">
+            <button type="submit" class="arcade" id="btn-submit-score">SUBMIT SCORE</button>
+            <button type="button" class="arcade secondary" onclick="skipSubmit()">SKIP</button>
+          </div>
+          <div class="save-status" id="save-status"></div>
+        </form>
+        <div class="key-hint">ENTER submit · ESC skip</div>
+      </div>
+
+      <!-- LEADERBOARD -->
+      <div class="overlay" id="overlay-leaderboard" style="display:none">
+        <h2>LEADERBOARD</h2>
+        <div class="lb-banner" id="lb-banner" style="display:none">SCORE SAVED · YOU ARE RANK <span id="lb-banner-rank">--</span></div>
+        <div class="lb-scroll">
+          <table class="lb-table" id="lb-table">
+            <thead><tr><th>#</th><th>NAME</th><th>SCORE</th><th>GDS</th><th>DATE</th></tr></thead>
+            <tbody id="lb-body"></tbody>
+          </table>
+          <div class="lb-empty" id="lb-empty" style="display:none">No scores yet — be the first.</div>
+        </div>
+        <div class="form-actions" style="margin-top:8px">
+          <button class="arcade" id="btn-play-again" onclick="startGame()">PLAY AGAIN</button>
+          <button class="arcade secondary" id="btn-back-to-menu" onclick="closeLeaderboard()">BACK</button>
+        </div>
+        <div class="key-hint">↑ / ↓ navigate · ENTER select · ESC back</div>
+      </div>
+
+    </div>
+    <div class="controls-strip">
+      <div>MOVE: <span>← →</span> / <span>A D</span> / <span>MOUSE</span> · <span>ESC</span> menu</div>
+      <div><button class="lb-link" onclick="showLeaderboard()">LEADERBOARD</button> · <button class="lb-link" onclick="showTutorial()">TUTORIAL</button></div>
+    </div>
+  </div>
+  <div class="footer">TRUSTEDSTAYS · INSERT COIN</div>
+
+<script>
+(() => {
+  // ============================================================
+  // SUPABASE CONFIG — paste your values from Project Settings → API
+  // ============================================================
+  // If both are empty, the game falls back to a per-device localStorage
+  // leaderboard. Once both are filled in (and you've run the SQL setup
+  // in Supabase), the leaderboard becomes shared across all players.
+  const SUPABASE_URL      = '';   // e.g. 'https://abcdefghij.supabase.co'
+  const SUPABASE_ANON_KEY = '';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  // ============================================================
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const W = canvas.width, H = canvas.height;
+
+  const COLORS = {
+    burntOrange: '#C35037', peach: '#E68760',
+    navy: '#344167', navyLight: '#7B8AAB', navyDeep: '#1F2742',
+    mint: '#95C89D', mintBright: '#B4DCB9', hintOfMint: '#F1F6EB',
+    white: '#FFFFFF', skin: '#F4D58A', hair: '#5A4530',
+    leisureBlue: '#A8C0E0',
+    amadeusBlue: '#005EB8', amadeusLight: '#5BC2E7', amadeusDeep: '#003B7A'
+  };
+
+  const HUD_TOP_H = 60;
+  const HUD_BOTTOM_H = 90;
+  const PLAY_TOP = HUD_TOP_H;
+  const PLAY_BOTTOM = H - HUD_BOTTOM_H;
+  const PLAY_H = PLAY_BOTTOM - PLAY_TOP;
+
+  const player = { x: W/2, y: PLAY_BOTTOM - 50, w: 44, h: 44, baseSpeed: 4.6 };
+
+  let items = [], particles = [], stars = [];
+  let score = 0;
+  let totalTime = 90, timeLeft = totalTime;
+  let lives = 3;
+  let running = false;
+  let collected = new Set();
+  let lastTimestamp = 0;
+  let waveTimer = 0, waveInterval = 2.4;
+  let multiplierTimer = 0, scoreMultiplier = 1;
+  let slowTimer = 0, beamBlockTimer = 0, damageFlash = 0;
+  let gdsActive = false, gdsTimer = 0;
+  let pmsAssigned = null;
+  let assignedAccreditation = null;
+  let assignedAssociation = null;
+  let powerupSchedule = [];
+  let highScore = 0;
+  let recentMessages = [];
+  let beamPhase = 0;
+  let lastSubmittedKey = null;
+  let lastSubmitTime = 0;
+  let reminderTimer = 0;
+  let gdsBannerOffset = 0;
+  let tutSlide = 0;
+  const TUT_SLIDES = 4;
+  const REQUIRED_KEYS = ['accred','bar','cor','association','cancel','los','pms'];
+  const TOTAL_REQUIRED = REQUIRED_KEYS.length;
+
+  const POWERUP_LIST = [
+    { time: 6,  key: 'accred',      short: 'ACC', label: 'Accreditation', category: 'accred-multi' },
+    { time: 16, key: 'bar',         short: 'BAR', label: 'Best Available Rate', category: 'rate' },
+    { time: 26, key: 'cor',         short: 'COR', label: 'Corporate Rate',      category: 'rate' },
+    { time: 38, key: 'association', short: 'ASN', label: 'Association',  category: 'association-multi' },
+    { time: 50, key: 'cancel',      short: 'CXL', label: '24 Hour Cancellation',  category: 'policy' },
+    { time: 62, key: 'los',         short: 'LOS', label: '1 Night Length of Stay', category: 'policy' },
+    { time: 74, key: 'pms',         short: 'PMS', label: 'PMS', category: 'pms-multi' }
+  ];
+
+  const ACCRED_OPTIONS = [
+    { id: 'qit',          label: 'Quality in Tourism', short: 'QIT' },
+    { id: 'isaap',        label: 'ISAAP',              short: 'ISA' },
+    { id: 'visitbritain', label: 'VisitBritain',       short: 'VBR' }
+  ];
+  const ASSOC_OPTIONS = [
+    { id: 'arl',  label: 'ARL',  short: 'ARL' },
+    { id: 'staa', label: 'STAA', short: 'STA' }
+  ];
+  const PMS_OPTIONS = [
+    { id: 'hospiria', label: 'Hospiria', short: 'HOS' },
+    { id: 'guesty',   label: 'Guesty',   short: 'GST' }
+  ];
+
+  const OBSTACLES = [
+    { key: 'pricing',        label: 'PRICING',        icon: 'PRC', effect: 'penalty',   amount: 8,  group: 'market'  },
+    { key: 'inflation',      label: 'INFLATION',      icon: 'INF', effect: 'penalty',   amount: 12, group: 'market'  },
+    { key: 'weather',        label: 'WEATHER',        icon: 'WX',  effect: 'slow',      duration: 3, group: 'market' },
+    { key: 'conflict',       label: 'CONFLICT',       icon: 'WAR', effect: 'damage',    amount: 1,  group: 'market'  },
+    { key: 'policies',       label: 'POLICIES',       icon: 'POL', effect: 'blockBeam', duration: 2.5, group: 'market' },
+    { key: 'technical',      label: 'TECHNICAL',      icon: 'TEC', effect: 'blockBeam', duration: 2,   group: 'barrier' },
+    { key: 'implementation', label: 'IMPLEMENTATION', icon: 'IMP', effect: 'slow',      duration: 3,   group: 'barrier' },
+    { key: 'legal',          label: 'LEGAL',          icon: 'LEG', effect: 'damage',    amount: 1,     group: 'barrier' },
+    { key: 'contract',       label: 'CONTRACT',       icon: 'CON', effect: 'penalty',   amount: 10,    group: 'barrier' }
+  ];
+
+  const SPRITE_LEISURE_M = ['...HHHH...','..HHHHHH..','..HFFFFH..','..FFFFFF..','...FFFF...','...CCCC...','CCCCCCCCCC','CCCCCCCCCC','..CC..CC..','..PP..PP..','..PP..PP..','..BB..BB..'];
+  const SPRITE_LEISURE_F = ['..HHHHHH..','.HHHHHHHH.','.HHHHHHHH.','.HFFFFFFH.','.HFFFFFFH.','...FFFF...','CCCCCCCCCC','CCCCCCCCCC','.CCCCCCCC.','..PP..PP..','..PP..PP..','..BB..BB..'];
+  const SPRITE_CORP_M = ['...HHHH......','..HHHHHH.....','..HFFFFH.....','..FFFFFF.....','...FFFF......','...STTS......','SSSSTTSSSS.K.','SSSSTTSSSSKKK','SSSSTTSSSS.K.','..SS..SS...K.','..PP..PP.....','..PP..PP.....','..BB..BB.....'];
+  const SPRITE_CORP_F = ['..HHHHHH.....','.HHHHHHHH....','.HHHHHHHH....','.HFFFFFFH....','.HFFFFFFH....','...FFFF......','...STTS......','SSSSTTSSSS.K.','SSSSTTSSSSKKK','..SS.SS....K.','..PP.PP......','..PP.PP......','..BB.BB......'];
+
+  const keys = {};
+  function isFormFocused() { const a = document.activeElement; return a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA'); }
+  function isVisible(id) { const el = document.getElementById(id); return el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none'; }
+  function navigateMenu(overlayId, delta) {
+    const buttons = Array.from(document.querySelectorAll('#' + overlayId + ' button.arcade')).filter(b => !b.disabled);
+    if (buttons.length === 0) return;
+    let idx = buttons.findIndex(b => b === document.activeElement);
+    if (idx === -1) idx = 0;
+    let next = idx + delta;
+    if (next < 0) next = buttons.length - 1;
+    else if (next >= buttons.length) next = 0;
+    buttons[next].focus();
+  }
+  function pauseToMenu() {
+    running = false;
+    hideAllOverlays();
+    document.getElementById('overlay-start').style.display = 'flex';
+    setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 60);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (isFormFocused()) {
+      if (e.key === 'Escape' && isVisible('overlay-end')) { e.preventDefault(); skipSubmit(); }
+      return;
+    }
+    const k = e.key;
+    if (isVisible('overlay-tutorial')) {
+      if (k === 'ArrowRight') { e.preventDefault(); nextTutorial(); }
+      else if (k === 'ArrowLeft') { e.preventDefault(); prevTutorial(); }
+      else if (k === 'ArrowDown') { e.preventDefault(); navigateMenu('overlay-tutorial', 1); }
+      else if (k === 'ArrowUp') { e.preventDefault(); navigateMenu('overlay-tutorial', -1); }
+      else if (k === 'Enter') {
+        const focused = document.activeElement;
+        if (focused && focused.tagName === 'BUTTON' && focused.closest('#overlay-tutorial')) { e.preventDefault(); focused.click(); }
+        else { e.preventDefault(); nextTutorial(); }
+      }
+      else if (k === 'Escape') { e.preventDefault(); skipTutorial(); }
+      return;
+    }
+    if (isVisible('overlay-start')) {
+      if (k === 'ArrowDown' || k === 'ArrowRight') { e.preventDefault(); navigateMenu('overlay-start', 1); }
+      else if (k === 'ArrowUp' || k === 'ArrowLeft') { e.preventDefault(); navigateMenu('overlay-start', -1); }
+      else if (k === 'Enter') {
+        const focused = document.activeElement;
+        if (focused && focused.tagName === 'BUTTON' && focused.closest('#overlay-start')) { e.preventDefault(); focused.click(); }
+        else { e.preventDefault(); startGame(); }
+      }
+      else if (k.toLowerCase() === 't') { e.preventDefault(); showTutorial(); }
+      else if (k.toLowerCase() === 'l') { e.preventDefault(); showLeaderboard(); }
+      return;
+    }
+    if (isVisible('overlay-leaderboard')) {
+      if (Date.now() - lastSubmitTime < 800) {
+        if (k === 'Enter' || k === ' ') { e.preventDefault(); return; }
+      }
+      if (k === 'ArrowDown' || k === 'ArrowRight') { e.preventDefault(); navigateMenu('overlay-leaderboard', 1); }
+      else if (k === 'ArrowUp' || k === 'ArrowLeft') { e.preventDefault(); navigateMenu('overlay-leaderboard', -1); }
+      else if (k === 'Enter') {
+        const focused = document.activeElement;
+        if (focused && focused.tagName === 'BUTTON' && focused.closest('#overlay-leaderboard')) { e.preventDefault(); focused.click(); }
+        else { e.preventDefault(); closeLeaderboard(); }
+      }
+      else if (k === 'Escape') { e.preventDefault(); closeLeaderboard(); }
+      return;
+    }
+    if (isVisible('overlay-end')) {
+      if (k === 'Enter') { const nm = document.getElementById('player-name'); if (document.activeElement !== nm) { e.preventDefault(); nm.focus(); } }
+      else if (k === 'Escape') { e.preventDefault(); skipSubmit(); }
+      return;
+    }
+    if (running) {
+      if (k === 'Escape') { e.preventDefault(); pauseToMenu(); return; }
+      keys[k.toLowerCase()] = true;
+      if (['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k.toLowerCase())) e.preventDefault();
+    }
+  });
+  document.addEventListener('keyup', e => { if (isFormFocused()) return; keys[e.key.toLowerCase()] = false; });
+
+  let mouseX = null;
+  canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); mouseX = (e.clientX - r.left) * (W / r.width); });
+  canvas.addEventListener('mouseleave', () => mouseX = null);
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; const r = canvas.getBoundingClientRect(); mouseX = (t.clientX - r.left) * (W / r.width); }, { passive: false });
+
+  // ---------- Spawning ----------
+  function makeGuest(x) {
+    const r = Math.random();
+    let tier = 'leisure';
+    if (gdsActive) tier = r < 0.92 ? 'corporate' : 'leisure';
+    else {
+      const corporateChance = 0.22 + Math.min(0.28, (totalTime - timeLeft) / 240);
+      tier = r < corporateChance ? 'corporate' : 'leisure';
+    }
+    const gender = Math.random() < 0.5 ? 'm' : 'f';
+    return { type: 'guest', tier, gender, x, y: PLAY_TOP, vy: 38 + Math.random() * 12, vx: 0, sway: Math.random() * Math.PI * 2, label: tier === 'leisure' ? 'LEISURE' : 'CORPORATE' };
+  }
+  function makeObstacle(x) {
+    const o = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
+    return { type: 'obstacle', subtype: o, x, y: PLAY_TOP, vy: 42 + Math.random() * 14, vx: 0, w: 56, h: 36 };
+  }
+  function makeEvent(x) {
+    const isHoliday = Math.random() < 0.4;
+    return { type: 'event', kind: isHoliday ? 'holiday' : 'event', label: isHoliday ? 'PEAK SEASON' : 'MAJOR EVENT', icon: isHoliday ? 'PEAK' : 'EVT', x, y: PLAY_TOP, vy: 38, rotation: 0, size: 22 };
+  }
+  function makePowerup(spec, opts) {
+    opts = opts || {};
+    const x = opts.x !== undefined ? opts.x : (80 + Math.random() * (W - 160));
+    let label = spec.label, displayShort = spec.short, variant = null;
+    if (spec.category === 'accred-multi') {
+      const choice = opts.variantOverride
+        ? ACCRED_OPTIONS.find(a => a.id === opts.variantOverride)
+        : ACCRED_OPTIONS[Math.floor(Math.random() * ACCRED_OPTIONS.length)];
+      variant = choice.id; label = choice.label; displayShort = choice.short;
+    } else if (spec.category === 'association-multi') {
+      const choice = opts.variantOverride
+        ? ASSOC_OPTIONS.find(a => a.id === opts.variantOverride)
+        : ASSOC_OPTIONS[Math.floor(Math.random() * ASSOC_OPTIONS.length)];
+      variant = choice.id; label = choice.label; displayShort = choice.short;
+    } else if (spec.category === 'pms-multi') {
+      const choice = opts.variantOverride
+        ? PMS_OPTIONS.find(a => a.id === opts.variantOverride)
+        : PMS_OPTIONS[Math.floor(Math.random() * PMS_OPTIONS.length)];
+      variant = choice.id; label = choice.label; displayShort = choice.short;
+    }
+    return { type: 'powerup', key: spec.key, category: spec.category, label, short: spec.short, displayShort, variant, x, y: PLAY_TOP, vy: 30, vx: (Math.random() - 0.5) * 20, pulse: 0 };
+  }
+
+  function spawnSlot(spec, opts) {
+    opts = opts || {};
+    if (spec.category === 'accred-multi') {
+      const xs = [120, W/2, W - 120];
+      ACCRED_OPTIONS.forEach((opt, i) => items.push(makePowerup(spec, { variantOverride: opt.id, x: xs[i] })));
+      if (!opts.silent) {
+        pushMessage('ACCREDITATION INCOMING — QUALITY IN TOURISM, ISAAP, VISITBRITAIN', COLORS.peach, 4);
+        pushMessage('CATCH ANY ONE TO FILL THE SLOT', COLORS.mintBright, 4);
+      }
+    } else if (spec.category === 'association-multi') {
+      const xs = [180, W - 180];
+      ASSOC_OPTIONS.forEach((opt, i) => items.push(makePowerup(spec, { variantOverride: opt.id, x: xs[i] })));
+      if (!opts.silent) {
+        pushMessage('INDUSTRY MEMBERSHIP INCOMING — ARL OR STAA', COLORS.peach, 4);
+        pushMessage('CATCH EITHER TO FILL THE SLOT', COLORS.mintBright, 4);
+      }
+    } else if (spec.category === 'pms-multi') {
+      const xs = [180, W - 180];
+      PMS_OPTIONS.forEach((opt, i) => items.push(makePowerup(spec, { variantOverride: opt.id, x: xs[i] })));
+      if (!opts.silent) {
+        pushMessage('PMS INCOMING — HOSPIRIA OR GUESTY', COLORS.peach, 4);
+        pushMessage('CATCH EITHER TO FILL THE SLOT', COLORS.mintBright, 4);
+      }
+    } else {
+      items.push(makePowerup(spec));
+      if (!opts.silent) pushMessage('POWER-UP INCOMING: ' + spec.label.toUpperCase(), COLORS.peach, 4);
+    }
+  }
+
+  function spawnWave() {
+    const cols = 4 + Math.floor(Math.random() * 2);
+    const margin = 70;
+    const slotW = (W - margin * 2) / (cols - 1);
+    const obstacleProb = gdsActive ? 0.05 : Math.min(0.45, 0.22 + (totalTime - timeLeft) / 260);
+    const eventProb = 0.10;
+    for (let i = 0; i < cols; i++) {
+      if (Math.random() < 0.18) continue;
+      const x = margin + i * slotW + (Math.random() - 0.5) * 24;
+      const r = Math.random();
+      if (r < eventProb) items.push(makeEvent(x));
+      else if (r < eventProb + obstacleProb) items.push(makeObstacle(x));
+      else items.push(makeGuest(x));
+    }
+  }
+
+  // ---------- Effects ----------
+  function spawnParticle(x, y, color, text, big) { particles.push({ x, y, color, text, life: 1.4, vy: -1, big: !!big }); }
+  function pushMessage(text, color, duration) {
+    let useColor = color || COLORS.mintBright;
+    if (gdsActive) {
+      if (useColor === COLORS.peach) useColor = COLORS.amadeusLight;
+      else if (useColor === COLORS.burntOrange) useColor = COLORS.amadeusBlue;
+    }
+    recentMessages.push({ text, color: useColor, life: duration || 2.6 });
+    if (recentMessages.length > 5) recentMessages.shift();
+  }
+  function obstacleTagline(o) {
+    if (o.group !== 'barrier') return null;
+    const map = { technical: 'TrustedStays integrates the stack', implementation: 'TrustedStays handles onboarding', legal: 'TrustedStays manages compliance', contract: 'TrustedStays standardises contracts' };
+    return map[o.key] || null;
+  }
+  function maybeTagline(e) { const t = obstacleTagline(e); if (t) setTimeout(() => pushMessage(t, COLORS.mintBright, 3.5), 280); }
+
+  function applyObstacleEffect(o) {
+    const e = o.subtype;
+    damageFlash = 0.5;
+    if (e.effect === 'damage') {
+      if (collected.has('accred')) {
+        // Shield consumed — slot empties, but accreditation respawns for last-chance grab
+        collected.delete('accred');
+        const accLabel = assignedAccreditation
+          ? ACCRED_OPTIONS.find(a => a.id === assignedAccreditation).label
+          : 'Accreditation';
+        spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD USED');
+        pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase(), COLORS.mint, 4);
+        pushMessage('Accreditation respawning — last chance for Amadeus GDS!', COLORS.peach, 5);
+        maybeTagline(e);
+        setTimeout(() => {
+          if (!running || gdsActive || collected.has('accred')) return;
+          const accSpec = POWERUP_LIST.find(p => p.key === 'accred');
+          spawnSlot(accSpec, { silent: true });
+          pushMessage('LAST CHANCE: catch any accreditation for Amadeus GDS!', COLORS.peach, 5);
+        }, 4000);
+        return;
+      }
+      lives = Math.max(0, lives - 1);
+      spawnParticle(player.x, player.y - 30, COLORS.burntOrange, '-1 LIFE');
+      pushMessage(e.label + ' cost you a life', COLORS.peach, 3);
+      maybeTagline(e);
+      if (lives <= 0) endGame(true);
+    } else if (e.effect === 'penalty') {
+      score = Math.max(0, score - e.amount);
+      spawnParticle(player.x, player.y - 30, COLORS.burntOrange, '-' + e.amount);
+      pushMessage(e.label + ' -' + e.amount + ' pts', COLORS.peach, 3);
+      maybeTagline(e);
+    } else if (e.effect === 'slow') {
+      slowTimer = e.duration;
+      pushMessage(e.label + ' slowing your ship', COLORS.navyLight, 3);
+      maybeTagline(e);
+    } else if (e.effect === 'blockBeam') {
+      beamBlockTimer = e.duration;
+      pushMessage(e.label + ' blocking beam', COLORS.peach, 3);
+      maybeTagline(e);
+    }
+  }
+
+  function applyEvent(ev) {
+    if (ev.kind === 'holiday') {
+      scoreMultiplier = 2; multiplierTimer = 6;
+      pushMessage('Peak season — 2x score', COLORS.mintBright, 3);
+    } else {
+      for (let i = 0; i < 3; i++) {
+        const x = 100 + Math.random() * (W - 200);
+        const g = makeGuest(x); g.y = PLAY_TOP + 30; g.vy = 60;
+        items.push(g);
+      }
+      pushMessage('Major event — bonus guests', COLORS.mintBright, 3);
+    }
+  }
+
+  function getCollectedFullLabel(p) {
+    if (p.category === 'accred-multi') return p.label + ' accreditation collected';
+    if (p.category === 'association-multi') return p.label + ' membership collected';
+    if (p.category === 'pms-multi') return p.label + ' PMS collected';
+    if (p.category === 'rate') return p.label + ' rate access code collected';
+    if (p.category === 'policy') return p.label + ' policy collected';
+    return p.label + ' collected';
+  }
+
+  function collectPowerup(p) {
+    if (p.category === 'pms-multi') {
+      if (collected.has('pms')) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); pushMessage(p.label + ' PMS bonus +5', COLORS.mint, 3); return; }
+      pmsAssigned = p.variant;
+    } else if (p.category === 'accred-multi') {
+      if (collected.has('accred')) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); pushMessage(p.label + ' bonus +5', COLORS.mint, 3); return; }
+      assignedAccreditation = p.variant;
+    } else if (p.category === 'association-multi') {
+      if (collected.has('association')) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); pushMessage(p.label + ' bonus +5', COLORS.mint, 3); return; }
+      assignedAssociation = p.variant;
+    } else {
+      if (collected.has(p.key)) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); return; }
+    }
+    collected.add(p.key);
+    spawnParticle(p.x, p.y, COLORS.peach, '+UNLOCKED', true);
+    pushMessage(getCollectedFullLabel(p).toUpperCase(), COLORS.mintBright, 5);
+    setTimeout(() => {
+      if (!running) return;
+      const remaining = TOTAL_REQUIRED - collected.size;
+      if (remaining > 0) pushMessage(remaining + ' more power-up' + (remaining > 1 ? 's' : '') + ' for Amadeus GDS', COLORS.peach, 3.5);
+      else pushMessage('All power-ups collected — Amadeus GDS unlocking!', COLORS.peach, 4);
+    }, 350);
+    checkGDSUnlock();
+  }
+  function checkGDSUnlock() { if (REQUIRED_KEYS.every(k => collected.has(k)) && !gdsActive) triggerGDS(); }
+
+  function triggerGDS() {
+    gdsActive = true;
+    gdsTimer = 18;
+    waveInterval = 0.5;
+    scoreMultiplier = 1.5;
+    multiplierTimer = 18;
+    spawnParticle(W/2, PLAY_TOP + PLAY_H/2 - 40, COLORS.amadeusLight, 'AMADEUS GDS', true);
+    setTimeout(() => spawnParticle(W/2, PLAY_TOP + PLAY_H/2, COLORS.white, 'UNLOCKED!', true), 350);
+    setTimeout(() => spawnParticle(W/2, PLAY_TOP + PLAY_H/2 + 40, COLORS.amadeusLight, 'CORPORATE DEMAND SURGE', true), 700);
+    pushMessage('AMADEUS GDS UNLOCKED!', COLORS.amadeusLight, 5);
+    for (let i = 0; i < 14; i++) {
+      const x = 60 + Math.random() * (W - 120);
+      const g = makeGuest(x);
+      g.tier = 'corporate'; g.label = 'CORPORATE';
+      g.y = PLAY_TOP - 30 - Math.random() * 200;
+      g.vy = 60 + Math.random() * 30;
+      items.push(g);
+    }
+  }
+
+  function getBeamRects() {
+    const wide = collected.has('association') && assignedAssociation === 'arl';
+    const multi = collected.has('association') && assignedAssociation === 'staa';
+    const baseW = wide ? 80 : 50;
+    const rects = [];
+    if (multi) {
+      const w = 38; const offset = 55;
+      rects.push({ cx: player.x - offset, w });
+      rects.push({ cx: player.x, w });
+      rects.push({ cx: player.x + offset, w });
+    } else { rects.push({ cx: player.x, w: baseW }); }
+    return rects.map(r => ({ x: r.cx - r.w/2, y: PLAY_TOP, w: r.w, h: player.y - player.h/2 - PLAY_TOP }));
+  }
+  function pointInBeam(px, py) {
+    if (beamBlockTimer > 0) return false;
+    const rects = getBeamRects();
+    for (const r of rects) if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return true;
+    return false;
+  }
+
+  function update(dt) {
+    if (!running) return;
+    beamPhase += dt;
+    gdsBannerOffset = (gdsBannerOffset + dt * 80) % 320;
+
+    let dx = 0;
+    if (keys['arrowleft'] || keys['a']) dx -= 1;
+    if (keys['arrowright'] || keys['d']) dx += 1;
+    const usingKeys = dx !== 0;
+    const slowFactor = slowTimer > 0 ? 0.55 : 1;
+    if (usingKeys) player.x += dx * player.baseSpeed * slowFactor * 60 * dt;
+    else if (mouseX !== null) {
+      const mdx = mouseX - player.x;
+      if (Math.abs(mdx) > 3) {
+        const sign = Math.sign(mdx);
+        const mv = Math.min(Math.abs(mdx), player.baseSpeed * slowFactor * 60 * dt);
+        player.x += sign * mv;
+      }
+    }
+    player.x = Math.max(player.w/2 + 10, Math.min(W - player.w/2 - 10, player.x));
+
+    waveTimer += dt;
+    if (waveTimer >= waveInterval) { waveTimer = 0; spawnWave(); }
+
+    const elapsed = totalTime - timeLeft;
+    for (let i = 0; i < POWERUP_LIST.length; i++) {
+      if (!powerupSchedule[i] && elapsed >= POWERUP_LIST[i].time) {
+        powerupSchedule[i] = true;
+        spawnSlot(POWERUP_LIST[i]);
+      }
+    }
+
+    reminderTimer += dt;
+    if (reminderTimer >= 18 && !gdsActive && collected.size < TOTAL_REQUIRED && timeLeft > 15) {
+      reminderTimer = 0;
+      const remaining = TOTAL_REQUIRED - collected.size;
+      pushMessage('Need ' + remaining + ' more power-up' + (remaining > 1 ? 's' : '') + ' for Amadeus GDS!', COLORS.peach, 4);
+    }
+
+    items = items.filter(it => {
+      it.y += it.vy * dt;
+      if (it.vx) it.x += it.vx * dt;
+      if (it.sway !== undefined) { it.sway += dt * 1.6; it.x += Math.sin(it.sway) * 8 * dt; }
+      if (it.type === 'event') it.rotation += dt * 1.6;
+      const inBeam = pointInBeam(it.x, it.y);
+      if (it.type === 'guest' || it.type === 'event' || it.type === 'powerup') {
+        if (inBeam) {
+          const dxp = player.x - it.x;
+          it.x += dxp * Math.min(1, dt * 4);
+          it.vy = Math.max(it.vy, 220);
+        }
+      }
+      if (it.y > PLAY_BOTTOM + 30) {
+        if (it.type === 'powerup') {
+          const slotKey = it.key;
+          if (!collected.has(slotKey)) {
+            const lbl = (it.label || '').toUpperCase();
+            pushMessage('MISSED ' + lbl + ' — respawning in 5 seconds', COLORS.burntOrange, 4);
+            const spec = POWERUP_LIST.find(p => p.key === slotKey);
+            const variantKind = it.variant;
+            setTimeout(() => {
+              if (!running) return;
+              if (collected.has(slotKey)) return;
+              if (variantKind) items.push(makePowerup(spec, { variantOverride: variantKind }));
+              else items.push(makePowerup(spec));
+              pushMessage('LAST CHANCE: ' + lbl + ' for Amadeus GDS surge!', COLORS.peach, 5);
+            }, 5000);
+          }
+        }
+        return false;
+      }
+      const playerLeft = player.x - player.w/2;
+      const playerRight = player.x + player.w/2;
+      const playerTop = player.y - player.h/2;
+      const playerBottom = player.y + player.h/2;
+      if (it.type === 'guest') {
+        const d = Math.hypot(it.x - player.x, it.y - player.y);
+        if (d < 32) {
+          let baseValue = it.tier === 'corporate' ? 5 : 1;
+          if (it.tier === 'leisure' && collected.has('bar')) baseValue += 1;
+          if (it.tier === 'corporate' && collected.has('cor')) baseValue += 5;
+          const val = Math.round(baseValue * scoreMultiplier);
+          score += val;
+          const c = it.tier === 'corporate' ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : COLORS.leisureBlue;
+          spawnParticle(it.x, it.y - 6, c, '+' + val);
+          return false;
+        }
+      } else if (it.type === 'powerup') {
+        const d = Math.hypot(it.x - player.x, it.y - player.y);
+        if (d < 32) { collectPowerup(it); return false; }
+      } else if (it.type === 'event') {
+        const d = Math.hypot(it.x - player.x, it.y - player.y);
+        if (d < 30) { applyEvent(it); return false; }
+        if (inBeam && it.y > PLAY_TOP + PLAY_H * 0.3) { applyEvent(it); return false; }
+      } else if (it.type === 'obstacle') {
+        if (it.x + it.w/2 > playerLeft && it.x - it.w/2 < playerRight && it.y + it.h/2 > playerTop && it.y - it.h/2 < playerBottom) {
+          applyObstacleEffect(it); return false;
+        }
+      }
+      return true;
+    });
+
+    if (multiplierTimer > 0) { multiplierTimer -= dt; if (multiplierTimer <= 0) scoreMultiplier = 1; }
+    if (slowTimer > 0) slowTimer -= dt;
+    if (beamBlockTimer > 0) beamBlockTimer -= dt;
+    if (damageFlash > 0) damageFlash -= dt;
+    if (gdsActive) {
+      gdsTimer -= dt;
+      if (gdsTimer <= 0) { gdsActive = false; waveInterval = 2.4; }
+    }
+    particles = particles.filter(p => { p.y += p.vy; p.life -= dt * 1.2; return p.life > 0; });
+    recentMessages = recentMessages.filter(m => { m.life -= dt; return m.life > 0; });
+    stars.forEach(s => { s.y += s.vy * dt; if (s.y > H + 4) { s.y = -4; s.x = Math.random() * W; } });
+    timeLeft -= dt;
+    if (timeLeft <= 0) endGame(false);
+  }
+
+  // ---------- Drawing ----------
+  function pad(n, len) { return String(n).padStart(len, '0'); }
+  function drawText(text, x, y, size, color, align) {
+    ctx.font = `${size}px "Press Start 2P", monospace`;
+    ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(text, x, y);
+  }
+  function drawHouseSprite(cx, cy, scale) {
+    const s = scale;
+    const left = cx - 5.5 * s, top = cy - 6 * s;
+    const map = ['     P     ','    POO    ','   POOOO   ','  POOOOOO  ',' POOOOOOOO ','POOOOOOOOOO','OOOOOOOOOOO','OOOOWOOOOOO','OOOOWWOOOOO','OOOOWOOOOOO','OOOOOOOOOOO','OOOOOOOOOOO'];
+    for (let r = 0; r < map.length; r++) {
+      for (let c = 0; c < map[r].length; c++) {
+        const ch = map[r][c];
+        if (ch === ' ') continue;
+        ctx.fillStyle = ch === 'P' ? COLORS.peach : ch === 'W' ? COLORS.white : COLORS.burntOrange;
+        ctx.fillRect(left + c*s, top + r*s, s, s);
+      }
+    }
+  }
+  function drawSprite(map, cx, cy, scale, palette, bobY) {
+    const s = scale;
+    const w = map[0].length, h = map.length;
+    const left = cx - (w * s) / 2, top = cy - (h * s) / 2 + (bobY || 0);
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < map[r].length; c++) {
+        const ch = map[r][c];
+        if (ch === ' ' || ch === '.') continue;
+        const col = palette[ch];
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(left + c*s, top + r*s, s, s);
+      }
+    }
+  }
+  function drawGuest(g) {
+    const bobY = Math.sin(g.sway) * 1.4;
+    let map, palette;
+    if (g.tier === 'leisure') {
+      map = g.gender === 'm' ? SPRITE_LEISURE_M : SPRITE_LEISURE_F;
+      palette = { H: COLORS.hair, F: COLORS.skin, C: COLORS.leisureBlue, P: COLORS.navy, B: COLORS.navyDeep };
+    } else {
+      map = g.gender === 'm' ? SPRITE_CORP_M : SPRITE_CORP_F;
+      palette = { H: COLORS.hair, F: COLORS.skin, S: COLORS.peach, T: COLORS.white, P: COLORS.navy, B: COLORS.navyDeep, K: COLORS.burntOrange };
+    }
+    drawSprite(map, g.x, g.y, 2, palette, bobY);
+  }
+  function drawObstacle(o) {
+    ctx.fillStyle = COLORS.navyDeep;
+    ctx.fillRect(o.x - o.w/2 - 2, o.y - o.h/2 - 2, o.w + 4, o.h + 4);
+    ctx.fillStyle = COLORS.navy;
+    ctx.fillRect(o.x - o.w/2, o.y - o.h/2, o.w, o.h);
+    const borderColor = o.subtype.group === 'barrier' ? COLORS.burntOrange : COLORS.mint;
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(o.x - o.w/2 + 0.5, o.y - o.h/2 + 0.5, o.w - 1, o.h - 1);
+    drawText(o.subtype.icon, o.x, o.y - 6, 11, o.subtype.group === 'barrier' ? COLORS.peach : COLORS.mintBright, 'center');
+    drawText(o.subtype.label, o.x, o.y + 6, 6, o.subtype.group === 'barrier' ? COLORS.mint : COLORS.mintBright, 'center');
+  }
+  function drawEvent(ev) {
+    ctx.save();
+    ctx.translate(ev.x, ev.y);
+    ctx.rotate(ev.rotation);
+    const glowGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, ev.size + 14);
+    glowGrad.addColorStop(0, 'rgba(180,220,185,0.5)');
+    glowGrad.addColorStop(1, 'rgba(180,220,185,0)');
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(-ev.size - 14, -ev.size - 14, (ev.size + 14) * 2, (ev.size + 14) * 2);
+    ctx.beginPath();
+    const points = 8;
+    for (let i = 0; i < points * 2; i++) {
+      const r = i % 2 === 0 ? ev.size : ev.size * 0.45;
+      const a = (Math.PI / points) * i;
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = COLORS.mintBright;
+    ctx.fill();
+    ctx.strokeStyle = COLORS.mint;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    drawText(ev.icon, ev.x, ev.y - 4, 9, COLORS.navyDeep, 'center');
+    drawText(ev.label, ev.x, ev.y + ev.size + 4, 7, COLORS.mintBright, 'center');
+  }
+  function drawPowerup(p) {
+    p.pulse += 0.08;
+    const halo = 30 + Math.sin(p.pulse) * 4;
+    const grad = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, halo);
+    grad.addColorStop(0, 'rgba(230,135,96,0.55)');
+    grad.addColorStop(1, 'rgba(230,135,96,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(p.x - halo, p.y - halo, halo*2, halo*2);
+    ctx.fillStyle = COLORS.burntOrange;
+    ctx.fillRect(p.x - 22, p.y - 16, 44, 32);
+    ctx.fillStyle = COLORS.peach;
+    ctx.fillRect(p.x - 22, p.y - 16, 44, 4);
+    ctx.fillRect(p.x - 22, p.y + 12, 44, 4);
+    ctx.strokeStyle = COLORS.white; ctx.lineWidth = 1;
+    ctx.strokeRect(p.x - 21.5, p.y - 15.5, 43, 31);
+    drawText(p.displayShort || p.short, p.x, p.y - 5, 11, COLORS.white, 'center');
+    const cat = p.category === 'accred-multi' ? 'ACCRED' :
+                p.category === 'association-multi' ? 'ASSOC' :
+                p.category === 'pms-multi' ? 'PMS' :
+                p.category === 'rate' ? 'RAC' :
+                p.category === 'policy' ? 'POLICY' : '';
+    drawText(cat, p.x, p.y + 6, 6, COLORS.peach, 'center');
+  }
+  function drawBeam() {
+    const rects = getBeamRects();
+    rects.forEach(r => {
+      const blocked = beamBlockTimer > 0;
+      const flicker = 0.85 + Math.sin(beamPhase * 18) * 0.1;
+      const grad = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+      const baseRGBA = blocked ? '195,80,55' : (gdsActive ? '91,194,231' : '149,200,157');
+      grad.addColorStop(0, `rgba(${baseRGBA},0)`);
+      grad.addColorStop(0.6, `rgba(${baseRGBA},${0.18 * flicker})`);
+      grad.addColorStop(1, `rgba(${baseRGBA},${0.55 * flicker})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.fillStyle = blocked ? 'rgba(195,80,55,0.18)' : (gdsActive ? 'rgba(91,194,231,0.25)' : 'rgba(180,220,185,0.22)');
+      const offset = (beamPhase * 80) % 24;
+      for (let y = r.y - offset; y < r.y + r.h; y += 24) ctx.fillRect(r.x + 2, y, r.w - 4, 2);
+      ctx.fillStyle = blocked ? COLORS.burntOrange : (gdsActive ? COLORS.amadeusLight : COLORS.mintBright);
+      ctx.globalAlpha = 0.8;
+      ctx.fillRect(r.x, r.y, 1, r.h);
+      ctx.fillRect(r.x + r.w - 1, r.y, 1, r.h);
+      ctx.globalAlpha = 1;
+    });
+  }
+  function drawPlayer() {
+    if (gdsActive) {
+      ctx.strokeStyle = `rgba(91,194,231,${0.7 + Math.sin(beamPhase * 4) * 0.2})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.w/2 + 12, 0, Math.PI*2);
+      ctx.stroke();
+    } else if (collected.has('accred')) {
+      ctx.strokeStyle = 'rgba(149,200,157,0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.w/2 + 10, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    drawHouseSprite(player.x, player.y, 4);
+  }
+  function drawTopHUD() {
+    ctx.fillStyle = COLORS.navyDeep; ctx.fillRect(0, 0, W, HUD_TOP_H);
+    ctx.fillStyle = gdsActive ? COLORS.amadeusLight : COLORS.mint;
+    ctx.fillRect(0, HUD_TOP_H - 2, W, 2);
+    drawText('SCORE', 20, 12, 9, COLORS.mint);
+    drawText(pad(score, 5), 20, 28, 22, gdsActive ? COLORS.amadeusLight : COLORS.peach);
+    drawText('TIME', W/2, 12, 9, COLORS.mint, 'center');
+    const t = Math.max(0, Math.ceil(timeLeft));
+    drawText(pad(t, 3), W/2, 28, 22, t <= 10 ? COLORS.burntOrange : (gdsActive ? COLORS.amadeusLight : COLORS.mintBright), 'center');
+    drawText('LIVES', W - 20, 12, 9, COLORS.mint, 'right');
+    for (let i = 0; i < 3; i++) {
+      const x = W - 20 - i * 22, y = 36;
+      if (i < lives) {
+        ctx.fillStyle = COLORS.burntOrange; ctx.fillRect(x - 7, y - 4, 14, 10);
+        ctx.fillStyle = COLORS.peach;
+        ctx.beginPath();
+        ctx.moveTo(x - 7, y - 4); ctx.lineTo(x, y - 11); ctx.lineTo(x + 7, y - 4);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = COLORS.white; ctx.fillRect(x - 1, y - 1, 2, 4);
+      } else {
+        ctx.strokeStyle = 'rgba(149,200,157,0.4)'; ctx.lineWidth = 1;
+        ctx.strokeRect(x - 7.5, y - 4.5, 15, 11);
+      }
+    }
+  }
+  function drawGDSBanner() {
+    if (!gdsActive) return;
+    const y = HUD_TOP_H + 2;
+    const bannerH = 24;
+    const bgrad = ctx.createLinearGradient(0, y, 0, y + bannerH);
+    bgrad.addColorStop(0, COLORS.amadeusBlue);
+    bgrad.addColorStop(1, COLORS.amadeusDeep);
+    ctx.fillStyle = bgrad;
+    ctx.fillRect(0, y, W, bannerH);
+    ctx.fillStyle = COLORS.amadeusLight;
+    ctx.fillRect(0, y, W, 2);
+    ctx.fillRect(0, y + bannerH - 2, W, 2);
+    ctx.font = '11px "Press Start 2P", monospace';
+    ctx.fillStyle = COLORS.white;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const text = 'AMADEUS GDS SURGE  *  CORPORATE DEMAND UNLOCKED  *  ';
+    for (let x = -gdsBannerOffset; x < W + 320; x += 320) ctx.fillText(text, x, y + bannerH/2);
+  }
+  function drawBottomHUD() {
+    const y0 = PLAY_BOTTOM;
+    ctx.fillStyle = COLORS.navyDeep; ctx.fillRect(0, y0, W, HUD_BOTTOM_H);
+    ctx.fillStyle = gdsActive ? COLORS.amadeusLight : COLORS.mint;
+    ctx.fillRect(0, y0, W, 2);
+    drawText('PWR-UPS', 14, y0 + 8, 8, COLORS.mint);
+    const remaining = TOTAL_REQUIRED - collected.size;
+    if (!gdsActive && remaining > 0) drawText(remaining + ' MORE FOR AMADEUS GDS', W - 14, y0 + 8, 8, COLORS.peach, 'right');
+    const slotW = 64, slotH = 50, gap = 8;
+    const startX = 14;
+    const slotY = y0 + 26;
+    POWERUP_LIST.forEach((spec, idx) => {
+      const x = startX + idx * (slotW + gap);
+      const lit = collected.has(spec.key);
+      ctx.fillStyle = lit ? COLORS.navy : COLORS.navyDeep;
+      ctx.fillRect(x, slotY, slotW, slotH);
+      ctx.strokeStyle = lit ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : 'rgba(149,200,157,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, slotY + 0.5, slotW - 1, slotH - 1);
+      const catColor = spec.category === 'accred-multi' ? COLORS.mint :
+                       spec.category === 'association-multi' ? COLORS.peach :
+                       spec.category === 'rate' ? COLORS.peach :
+                       spec.category === 'policy' ? COLORS.mintBright :
+                       spec.category === 'pms-multi' ? COLORS.burntOrange : COLORS.peach;
+      ctx.fillStyle = lit ? catColor : 'rgba(149,200,157,0.25)';
+      ctx.fillRect(x, slotY, slotW, 4);
+      let short = spec.short;
+      if (spec.key === 'pms' && pmsAssigned) short = PMS_OPTIONS.find(o => o.id === pmsAssigned).short;
+      if (spec.key === 'accred' && assignedAccreditation) short = ACCRED_OPTIONS.find(a => a.id === assignedAccreditation).short;
+      if (spec.key === 'association' && assignedAssociation) short = ASSOC_OPTIONS.find(a => a.id === assignedAssociation).short;
+      drawText(short, x + slotW/2, slotY + 12, 11, lit ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : COLORS.navyLight, 'center');
+      const catLabel = spec.category === 'accred-multi' ? 'ACCRED' :
+                       spec.category === 'association-multi' ? 'ASSOC' :
+                       spec.category === 'rate' ? 'RAC' :
+                       spec.category === 'policy' ? 'POLICY' : 'PMS';
+      drawText(catLabel, x + slotW/2, slotY + 28, 6, lit ? COLORS.mintBright : 'rgba(149,200,157,0.5)', 'center');
+      if (lit) { ctx.fillStyle = gdsActive ? COLORS.white : COLORS.mintBright; ctx.fillRect(x + slotW - 9, slotY + slotH - 9, 5, 5); }
+    });
+    const gdsX = startX + TOTAL_REQUIRED * (slotW + gap);
+    const gdsW = W - gdsX - 14;
+    ctx.fillStyle = gdsActive ? COLORS.amadeusBlue : COLORS.navyDeep;
+    ctx.fillRect(gdsX, slotY, gdsW, slotH);
+    ctx.strokeStyle = gdsActive ? COLORS.amadeusLight : 'rgba(195,80,55,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash(gdsActive ? [] : [3, 2]);
+    ctx.strokeRect(gdsX + 0.5, slotY + 0.5, gdsW - 1, slotH - 1);
+    ctx.setLineDash([]);
+    drawText('AMADEUS', gdsX + gdsW/2, slotY + 6, 9, gdsActive ? COLORS.white : COLORS.peach, 'center');
+    drawText('GDS', gdsX + gdsW/2, slotY + 18, 11, gdsActive ? COLORS.white : COLORS.peach, 'center');
+    drawText(gdsActive ? 'ACTIVE' : 'LOCKED', gdsX + gdsW/2, slotY + 32, 7, gdsActive ? COLORS.amadeusLight : 'rgba(195,80,55,0.7)', 'center');
+    if (gdsActive) drawText(Math.ceil(gdsTimer) + 's', gdsX + gdsW/2, slotY + 42, 7, COLORS.white, 'center');
+  }
+  function drawStatusMessages() {
+    let y = HUD_TOP_H + (gdsActive ? 36 : 8);
+    recentMessages.forEach(m => {
+      const fade = Math.min(1, Math.min(m.life / 0.4, 1));
+      ctx.globalAlpha = fade;
+      drawText(m.text.toUpperCase(), 14, y, 8, m.color);
+      y += 14;
+      ctx.globalAlpha = 1;
+    });
+    if (scoreMultiplier > 1 && !gdsActive) drawText('PEAK SEASON x' + scoreMultiplier, W/2, HUD_TOP_H + 8, 10, COLORS.mintBright, 'center');
+    if (gdsActive && scoreMultiplier > 1) drawText('AMADEUS GDS x' + scoreMultiplier, W/2, HUD_TOP_H + 30, 10, COLORS.amadeusLight, 'center');
+  }
+  function drawBackground() {
+    ctx.fillStyle = COLORS.navyDeep;
+    ctx.fillRect(0, PLAY_TOP, W, PLAY_H);
+    stars.forEach(s => {
+      ctx.fillStyle = gdsActive ? `rgba(91,194,231,${s.a})` : `rgba(149,200,157,${s.a})`;
+      ctx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+    });
+    ctx.globalAlpha = 0.04;
+    const cols = 5, rows = 4, gx = W / cols, gy = PLAY_H / rows;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) drawHouseSprite(gx*i + gx/2, PLAY_TOP + gy*j + gy/2, 2);
+    ctx.globalAlpha = 1;
+    if (damageFlash > 0) { ctx.fillStyle = `rgba(195,80,55,${damageFlash * 0.25})`; ctx.fillRect(0, PLAY_TOP, W, PLAY_H); }
+    if (gdsActive) {
+      ctx.fillStyle = `rgba(0,94,184,${0.10 + Math.abs(Math.sin(beamPhase * 6)) * 0.08})`;
+      ctx.fillRect(0, PLAY_TOP, W, PLAY_H);
+    }
+  }
+  function drawParticles() {
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      drawText(p.text, p.x, p.y, p.big ? 14 : 10, p.color, 'center');
+      ctx.globalAlpha = 1;
+    });
+  }
+  function draw() {
+    ctx.fillStyle = COLORS.navyDeep; ctx.fillRect(0, 0, W, H);
+    drawBackground();
+    drawBeam();
+    items.forEach(it => {
+      if (it.type === 'guest') drawGuest(it);
+      else if (it.type === 'obstacle') drawObstacle(it);
+      else if (it.type === 'event') drawEvent(it);
+      else if (it.type === 'powerup') drawPowerup(it);
+    });
+    drawPlayer();
+    drawParticles();
+    drawTopHUD();
+    drawGDSBanner();
+    drawStatusMessages();
+    drawBottomHUD();
+  }
+
+  function loop(ts) {
+    if (!lastTimestamp) lastTimestamp = ts;
+    const dt = Math.min(0.05, (ts - lastTimestamp) / 1000);
+    lastTimestamp = ts;
+    if (running) update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 35; i++) stars.push({ x: Math.random() * W, y: PLAY_TOP + Math.random() * PLAY_H, size: Math.random() < 0.7 ? 1 : 2, a: 0.15 + Math.random() * 0.35, vy: 8 + Math.random() * 18 });
+  }
+
+  // ---------- Leaderboard (Supabase + localStorage fallback) ----------
+  const LB_KEY = 'tsdr_leaderboard_v1';
+  const TUT_KEY = 'tsdr_tutorial_seen_v1';
+  let memoryLB = [];
+
+  // Initialise Supabase client only if both URL and anon key are filled in,
+  // and the Supabase JS library has loaded from the CDN.
+  let sb = null;
+  let sbEnabled = false;
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    if (window.supabase && window.supabase.createClient) {
+      try {
+        sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        sbEnabled = true;
+        console.log('[Supabase] Connected — leaderboard is shared');
+      } catch (e) {
+        console.warn('[Supabase] Init failed, falling back to localStorage:', e);
+      }
+    } else {
+      console.warn('[Supabase] Library not loaded — falling back to localStorage');
+    }
+  } else {
+    console.log('[Supabase] Not configured — using per-device localStorage leaderboard');
+  }
+
+  let storageOK = (() => { try { const k = '__tsdr_test__'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch { return false; } })();
+
+  function seedFromStorage() {
+    if (!storageOK) return;
+    try { const raw = localStorage.getItem(LB_KEY); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) memoryLB = parsed; } }
+    catch (e) { console.warn('LB seed failed:', e); }
+  }
+  function loadLB() { return memoryLB.slice(); }
+  function saveLBLocal(lb) {
+    memoryLB = lb.slice();
+    if (storageOK) {
+      try { localStorage.setItem(LB_KEY, JSON.stringify(memoryLB.slice(0, 100))); return true; }
+      catch (e) { console.warn('LB write failed:', e); return false; }
+    }
+    return false;
+  }
+  function addLocalEntry(entry) {
+    const lb = loadLB();
+    lb.push(entry);
+    lb.sort((a,b) => b.score - a.score);
+    saveLBLocal(lb);
+    return memoryLB;
+  }
+
+  // Pull the latest top-100 from Supabase into memoryLB. Returns true on success.
+  async function refreshFromSupabase() {
+    if (!sbEnabled) return false;
+    try {
+      const { data, error } = await sb
+        .from('public_leaderboard')
+        .select('id, name, score, gds_unlocked, created_at')
+        .order('score', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      memoryLB = (data || []).map(row => ({
+        key: row.id,
+        name: row.name,
+        score: row.score,
+        gdsUnlocked: row.gds_unlocked,
+        date: row.created_at
+      }));
+      console.log('[Supabase] Refreshed leaderboard:', memoryLB.length, 'entries');
+      return true;
+    } catch (e) {
+      console.warn('[Supabase] refresh failed, using local copy:', e);
+      return false;
+    }
+  }
+
+  // Insert one entry into Supabase. Returns the new row's id, or null on failure.
+  async function insertToSupabase(entry) {
+    if (!sbEnabled) return null;
+    try {
+      const { data, error } = await sb
+        .from('public_leaderboard')
+        .insert({ name: entry.name, score: entry.score, gds_unlocked: entry.gdsUnlocked })
+        .select()
+        .single();
+      if (error) throw error;
+      // If marketing consent was given, write the email to the consent table.
+      // The client cannot read this table back — only Supabase admins can.
+      if (entry.marketingConsent && entry.email) {
+        const { error: mErr } = await sb
+          .from('marketing_consent')
+          .insert({ name: entry.name, email: entry.email, score: entry.score, gds_unlocked: entry.gdsUnlocked });
+        if (mErr) console.warn('[Supabase] marketing insert failed:', mErr);
+      }
+      console.log('[Supabase] Inserted leaderboard row', data.id);
+      return data.id;
+    } catch (e) {
+      console.error('[Supabase] insert failed:', e);
+      return null;
+    }
+  }
+  function renderLB(highlightKey) {
+    const lb = loadLB();
+    const tbody = document.getElementById('lb-body');
+    const empty = document.getElementById('lb-empty');
+    const table = document.getElementById('lb-table');
+    if (lb.length === 0) {
+      table.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+    table.style.display = '';
+    empty.style.display = 'none';
+    tbody.innerHTML = '';
+    lb.slice(0, 25).forEach((e, idx) => {
+      const tr = document.createElement('tr');
+      if (e.key === highlightKey) tr.classList.add('you');
+      const dateShort = (e.date || '').split('T')[0].split('-').reverse().slice(0,2).join('/');
+      tr.innerHTML = `
+        <td>${pad(idx+1, 2)}</td>
+        <td class="name-cell">${escapeHtml(String(e.name || '').toUpperCase())}</td>
+        <td>${pad(e.score || 0, 5)}</td>
+        <td class="${e.gdsUnlocked ? 'gds-yes' : 'gds-no'}">${e.gdsUnlocked ? '*' : '-'}</td>
+        <td>${dateShort}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    if (highlightKey) {
+      const youIdx = lb.findIndex(en => en.key === highlightKey);
+      const banner = document.getElementById('lb-banner');
+      if (youIdx >= 0) {
+        document.getElementById('lb-banner-rank').textContent = pad(youIdx + 1, 2);
+        banner.style.display = 'block';
+      } else { banner.style.display = 'none'; }
+      setTimeout(() => {
+        const row = tbody.querySelector('tr.you');
+        if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 60);
+    } else { document.getElementById('lb-banner').style.display = 'none'; }
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+  function hideAllOverlays() {
+    ['overlay-tutorial','overlay-start','overlay-end','overlay-leaderboard'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+  }
+  window.showLeaderboard = async function(fromSubmit) {
+    console.log('[LB] showLeaderboard called. fromSubmit:', !!fromSubmit, 'entries:', memoryLB.length);
+    hideAllOverlays();
+    document.getElementById('overlay-leaderboard').style.display = 'flex';
+    // When opened from the menu (not directly after submit), pull the latest
+    // from Supabase so we see other players' scores. After submit we already
+    // refreshed in handleSubmit so we render straight away.
+    if (sbEnabled && !fromSubmit) {
+      const tbody = document.getElementById('lb-body');
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;color:#95C89D;font-family:\'Press Start 2P\',monospace;font-size:9px">LOADING...</td></tr>';
+      await refreshFromSupabase();
+    }
+    renderLB(fromSubmit ? lastSubmittedKey : null);
+    setTimeout(() => {
+      const target = fromSubmit ? document.getElementById('btn-back-to-menu') : document.getElementById('btn-play-again');
+      if (target) target.focus();
+    }, 80);
+  };
+  window.closeLeaderboard = function() {
+    document.getElementById('lb-banner').style.display = 'none';
+    hideAllOverlays();
+    document.getElementById('overlay-start').style.display = 'flex';
+    setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 60);
+  };
+
+  // ---------- Form / Submit ----------
+  let submitInFlight = false;
+  async function handleSubmit() {
+    if (submitInFlight) return;
+    submitInFlight = true;
+    const nameInput = document.getElementById('player-name');
+    const emailInput = document.getElementById('player-email');
+    const consentInput = document.getElementById('player-consent');
+    const submitBtn = document.getElementById('btn-submit-score');
+    const status = document.getElementById('save-status');
+    const name = (nameInput.value || '').trim().slice(0, 16);
+    const email = (emailInput.value || '').trim();
+    const consent = consentInput.checked;
+    console.log('[Submit] name=' + JSON.stringify(name) + ' email=' + JSON.stringify(email) + ' consent=' + consent);
+    if (!name) {
+      status.textContent = 'Please enter a name';
+      status.className = 'save-status warn';
+      nameInput.focus();
+      submitInFlight = false;
+      return;
+    }
+    const localKey = 'k_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    const entry = {
+      key: localKey, name, email: email || null,
+      marketingConsent: !!(consent && email),
+      score: score, gdsUnlocked: collected.size === TOTAL_REQUIRED,
+      powerupsEarned: collected.size,
+      date: new Date().toISOString()
+    };
+    submitBtn.disabled = true;
+    status.textContent = sbEnabled ? 'SAVING...' : 'SAVED!';
+    status.className = 'save-status success';
+    try {
+      // Always save locally as a backup
+      addLocalEntry(entry);
+      // If Supabase is configured, push to the shared leaderboard and refresh
+      if (sbEnabled) {
+        const remoteId = await insertToSupabase(entry);
+        if (remoteId) {
+          entry.key = remoteId;
+          await refreshFromSupabase();
+        }
+        status.textContent = 'SAVED!';
+      }
+      lastSubmittedKey = entry.key;
+      lastSubmitTime = Date.now();
+      nameInput.blur();
+      await showLeaderboard(true);
+      nameInput.value = '';
+      emailInput.value = '';
+      consentInput.checked = false;
+    } catch (err) {
+      console.error('[Submit] failed:', err);
+      status.textContent = 'Could not save score';
+      status.className = 'save-status warn';
+    } finally {
+      submitBtn.disabled = false;
+      submitInFlight = false;
+    }
+  }
+  const scoreForm = document.getElementById('score-form');
+  scoreForm.addEventListener('submit', e => { e.preventDefault(); e.stopPropagation(); handleSubmit(); return false; });
+  document.getElementById('btn-submit-score').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); handleSubmit(); });
+  window.skipSubmit = function() {
+    hideAllOverlays();
+    document.getElementById('overlay-start').style.display = 'flex';
+    scoreForm.reset();
+    document.getElementById('save-status').textContent = '';
+    setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 60);
+  };
+
+  // ---------- Tutorial ----------
+  function tutorialSeen() { if (!storageOK) return false; try { return localStorage.getItem(TUT_KEY) === '1'; } catch { return false; } }
+  function markTutorialSeen() { if (!storageOK) return; try { localStorage.setItem(TUT_KEY, '1'); } catch {} }
+  function showSlide(idx) {
+    tutSlide = Math.max(0, Math.min(TUT_SLIDES - 1, idx));
+    document.querySelectorAll('.tut-slide').forEach((el, i) => el.classList.toggle('active', i === tutSlide));
+    document.querySelectorAll('#tut-progress .tut-dot').forEach((el, i) => el.classList.toggle('active', i === tutSlide));
+    document.getElementById('tut-back').disabled = tutSlide === 0;
+    document.getElementById('tut-next').textContent = tutSlide === TUT_SLIDES - 1 ? 'PRESS START' : 'NEXT';
+    drawTutorialVisuals();
+    setTimeout(() => { const nextBtn = document.getElementById('tut-next'); if (nextBtn) nextBtn.focus(); }, 60);
+  }
+  window.nextTutorial = function() { if (tutSlide < TUT_SLIDES - 1) showSlide(tutSlide + 1); else { markTutorialSeen(); startGame(); } };
+  window.prevTutorial = function() { if (tutSlide > 0) showSlide(tutSlide - 1); };
+  window.skipTutorial = function() { markTutorialSeen(); startGame(); };
+  window.showTutorial = function() {
+    hideAllOverlays();
+    showSlide(0);
+    document.getElementById('overlay-tutorial').style.display = 'flex';
+  };
+  function drawTutorialVisuals() {
+    const v1 = document.getElementById('tut-visual-1');
+    if (!v1) return;
+    v1.innerHTML = `
+      <svg viewBox="0 0 360 130" width="100%" height="100%" style="image-rendering:pixelated">
+        <defs><linearGradient id="beam" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#95C89D" stop-opacity="0"/><stop offset="1" stop-color="#95C89D" stop-opacity="0.5"/></linearGradient></defs>
+        <rect x="160" y="10" width="40" height="100" fill="url(#beam)"/>
+        <line x1="160" y1="10" x2="160" y2="100" stroke="#B4DCB9" stroke-width="1"/>
+        <line x1="200" y1="10" x2="200" y2="100" stroke="#B4DCB9" stroke-width="1"/>
+        <g transform="translate(180, 40)">
+          <rect x="-6" y="-10" width="12" height="6" fill="#5A4530"/>
+          <rect x="-5" y="-6" width="10" height="6" fill="#F4D58A"/>
+          <rect x="-7" y="-1" width="14" height="8" fill="#A8C0E0"/>
+          <rect x="-3" y="6" width="2" height="5" fill="#344167"/>
+          <rect x="1" y="6" width="2" height="5" fill="#344167"/>
+        </g>
+        <g transform="translate(180, 105)">
+          <polygon points="0,-18 -16,-2 -16,12 16,12 16,-2" fill="#C35037"/>
+          <polygon points="0,-18 -10,-8 10,-8" fill="#E68760"/>
+          <circle cx="0" cy="2" r="3" fill="white"/>
+          <rect x="-1" y="2" width="2" height="6" fill="white"/>
+        </g>
+      </svg>`;
+    const v2 = document.getElementById('tut-visual-2');
+    v2.innerHTML = `
+      <svg viewBox="0 0 360 130" width="100%" height="100%" style="image-rendering:pixelated">
+        <text x="55" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#B4DCB9">LEISURE GUEST</text>
+        <text x="200" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#E68760">CORPORATE GUEST</text>
+        <text x="320" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#B4DCB9">BONUS</text>
+        <g transform="translate(35, 65) scale(2)">
+          <rect x="-5" y="-12" width="10" height="6" fill="#5A4530"/>
+          <rect x="-4" y="-7" width="8" height="5" fill="#F4D58A"/>
+          <rect x="-7" y="-2" width="14" height="8" fill="#A8C0E0"/>
+          <rect x="-3" y="6" width="2" height="5" fill="#344167"/>
+          <rect x="1" y="6" width="2" height="5" fill="#344167"/>
+        </g>
+        <g transform="translate(75, 65) scale(2)">
+          <rect x="-6" y="-13" width="12" height="9" fill="#5A4530"/>
+          <rect x="-4" y="-6" width="8" height="5" fill="#F4D58A"/>
+          <rect x="-7" y="-1" width="14" height="8" fill="#A8C0E0"/>
+          <rect x="-3" y="7" width="2" height="5" fill="#344167"/>
+          <rect x="1" y="7" width="2" height="5" fill="#344167"/>
+        </g>
+        <g transform="translate(180, 65) scale(2)">
+          <rect x="-5" y="-12" width="10" height="6" fill="#5A4530"/>
+          <rect x="-4" y="-7" width="8" height="5" fill="#F4D58A"/>
+          <rect x="-7" y="-2" width="14" height="8" fill="#E68760"/>
+          <rect x="-1" y="-2" width="2" height="6" fill="white"/>
+          <rect x="-3" y="6" width="2" height="5" fill="#344167"/>
+          <rect x="1" y="6" width="2" height="5" fill="#344167"/>
+          <rect x="8" y="0" width="5" height="5" fill="#C35037"/>
+        </g>
+        <g transform="translate(220, 65) scale(2)">
+          <rect x="-6" y="-13" width="12" height="9" fill="#5A4530"/>
+          <rect x="-4" y="-6" width="8" height="5" fill="#F4D58A"/>
+          <rect x="-7" y="-1" width="14" height="8" fill="#E68760"/>
+          <rect x="-1" y="-1" width="2" height="6" fill="white"/>
+          <rect x="-3" y="7" width="2" height="5" fill="#344167"/>
+          <rect x="1" y="7" width="2" height="5" fill="#344167"/>
+          <rect x="8" y="1" width="5" height="5" fill="#C35037"/>
+        </g>
+        <g transform="translate(320, 65)">
+          <polygon points="0,-22 4,-7 22,0 4,7 0,22 -4,7 -22,0 -4,-7" fill="#B4DCB9" stroke="#95C89D" stroke-width="1.5"/>
+          <text x="0" y="3" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#1F2742">EVT</text>
+        </g>
+        <text x="55" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="white">1 PT</text>
+        <text x="200" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="white">5 PTS</text>
+        <text x="320" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="7" fill="#B4DCB9">2x BOOST</text>
+      </svg>`;
+    const v3 = document.getElementById('tut-visual-3');
+    v3.innerHTML = `
+      <svg viewBox="0 0 360 130" width="100%" height="100%" style="image-rendering:pixelated">
+        <g transform="translate(110, 55)">
+          <rect x="-38" y="-22" width="76" height="44" fill="#344167" stroke="#95C89D" stroke-width="2"/>
+          <text x="0" y="-2" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="13" fill="#B4DCB9">PRC</text>
+          <text x="0" y="14" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="7" fill="#B4DCB9">PRICING</text>
+        </g>
+        <text x="110" y="105" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#95C89D">MARKET FACTOR</text>
+        <g transform="translate(250, 55)">
+          <rect x="-38" y="-22" width="76" height="44" fill="#344167" stroke="#C35037" stroke-width="2"/>
+          <text x="0" y="-2" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="13" fill="#E68760">TEC</text>
+          <text x="0" y="14" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="7" fill="#95C89D">TECHNICAL</text>
+        </g>
+        <text x="250" y="105" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#C35037">GDS BARRIER</text>
+      </svg>`;
+  }
+
+  // ---------- Lifecycle ----------
+  window.startGame = function() {
+    hideAllOverlays();
+    score = 0; timeLeft = totalTime; lives = 3;
+    collected.clear(); items = []; particles = []; recentMessages = [];
+    waveTimer = 0; waveInterval = 2.4;
+    multiplierTimer = 0; scoreMultiplier = 1;
+    slowTimer = 0; beamBlockTimer = 0; damageFlash = 0;
+    gdsActive = false; pmsAssigned = null; assignedAccreditation = null; assignedAssociation = null;
+    powerupSchedule = new Array(POWERUP_LIST.length).fill(false);
+    reminderTimer = 0;
+    player.x = W/2;
+    initStars();
+    running = true;
+    document.getElementById('save-status').textContent = '';
+    pushMessage('Round started — collect every category for Amadeus GDS!', COLORS.peach, 4);
+    if (canvas.focus) canvas.focus();
+  };
+  function endGame(byDeath) {
+    running = false;
+    if (score > highScore) highScore = score;
+    let title, note;
+    if (byDeath) { title = 'PROPERTY<br>OFFLINE'; note = 'Market factors and GDS barriers knocked your property offline. Try again.'; }
+    else if (collected.size === TOTAL_REQUIRED) { title = 'AMADEUS GDS<br>UNLOCKED'; note = 'You unlocked Amadeus GDS — corporate demand at full scale.'; }
+    else { title = 'TIME<br>UP'; note = `You earned ${collected.size} of ${TOTAL_REQUIRED} power-up categories. Fulfil every one to trigger the Amadeus GDS surge.`; }
+    document.getElementById('end-title').innerHTML = title;
+    document.getElementById('end-score').textContent = pad(score, 5);
+    document.getElementById('end-hi').textContent = pad(highScore, 5);
+    document.getElementById('end-note').textContent = note;
+    hideAllOverlays();
+    document.getElementById('overlay-end').style.display = 'flex';
+    setTimeout(() => document.getElementById('player-name').focus(), 100);
+  }
+
+  // ---------- Boot ----------
+  initStars();
+  seedFromStorage();
+  function boot() {
+    // Fire-and-forget initial Supabase refresh — leaderboard view will block-load
+    // again the first time it's opened, but this gets us a head start.
+    if (sbEnabled) refreshFromSupabase();
+    if (tutorialSeen()) {
+      hideAllOverlays();
+      document.getElementById('overlay-start').style.display = 'flex';
+      setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 100);
+    } else {
+      hideAllOverlays();
+      showSlide(0);
+      document.getElementById('overlay-tutorial').style.display = 'flex';
+    }
+    requestAnimationFrame(loop);
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(boot);
+  else boot();
+})();
+</script>
+</body>
+</html>
