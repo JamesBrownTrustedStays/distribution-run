@@ -1,0 +1,16 @@
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: '0 12 */3 * *'   # noon UTC every 3 days
+  workflow_dispatch:           # also lets you trigger it manually from GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -fsS -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+               "https://amilxsitswbyeyrpfznc.supabase.co/rest/v1/public_leaderboard?select=count&limit=1"
+          echo "Pinged Supabase successfully"
