@@ -10,7 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase
+        env:
+          SUPABASE_URL: https://amilxsitswbyeyrpfznc.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          curl -fsS -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-               "https://amilxsitswbyeyrpfznc.supabase.co/rest/v1/public_leaderboard?select=count&limit=1"
-          echo "Pinged Supabase successfully"
+          echo "Pinging $SUPABASE_URL..."
+          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/public_leaderboard?select=id&limit=1")
+          echo "Response: $response"
+          status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
+          if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+            echo "Pinged Supabase successfully (HTTP $status)"
+          else
+            echo "Ping failed with HTTP $status"
+            exit 1
+          fi
