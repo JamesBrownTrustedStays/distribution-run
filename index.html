@@ -101,6 +101,67 @@
 
   .footer { margin-top: 14px; font-size: 11px; color: var(--navy); opacity: 0.5; font-family: 'Press Start 2P', monospace; letter-spacing: 0.05em; }
   .key-hint { font-size: 9px; color: var(--mint); opacity: 0.75; margin-top: 6px; }
+
+  /* Sticky-note hint that appears over the canvas during practice mode */
+  .practice-note {
+    position: absolute;
+    top: 76px;
+    right: 16px;
+    background: #FFD96B;
+    color: var(--navy-deep);
+    padding: 12px 14px 14px;
+    border-radius: 3px;
+    font-family: 'Rubik', sans-serif;
+    font-size: 12px;
+    width: 220px;
+    z-index: 4;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.05);
+    transform: rotate(-2deg);
+  }
+  .practice-note::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%) rotate(2deg);
+    width: 40px;
+    height: 14px;
+    background: rgba(195,80,55,0.55);
+    border-radius: 1px;
+  }
+  .practice-note .practice-progress {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--burnt-orange);
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+  }
+  .practice-note .practice-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    color: var(--navy-deep);
+  }
+  .practice-note .practice-hint {
+    font-size: 11px;
+    line-height: 1.45;
+    margin-bottom: 12px;
+    color: var(--navy);
+  }
+  .practice-note .practice-skip {
+    background: var(--navy-deep);
+    color: var(--mint-bright);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 3px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    cursor: pointer;
+    width: 100%;
+  }
+  .practice-note .practice-skip:hover { background: #2d3760; }
+
   @media (max-width: 740px) { .cabinet { width: 100%; padding: 8px; } }
 </style>
 </head>
@@ -114,6 +175,14 @@
       <canvas id="game" width="700" height="780"></canvas>
       <div class="scanlines"></div>
       <div class="vignette"></div>
+
+      <!-- Sticky-note hint for practice mode -->
+      <div class="practice-note" id="practice-note" style="display:none">
+        <div class="practice-progress" id="practice-progress">1 / 10</div>
+        <div class="practice-title" id="practice-title">CATCH THE GUEST</div>
+        <div class="practice-hint" id="practice-hint">Move under it and let your beam pull it in.</div>
+        <button class="practice-skip" onclick="skipPractice()">SKIP PRACTICE</button>
+      </div>
 
       <!-- TUTORIAL -->
       <div class="overlay" id="overlay-tutorial">
@@ -170,8 +239,9 @@
         </div>
         <div class="form-actions">
           <button class="arcade secondary" id="tut-back" onclick="prevTutorial()" disabled>BACK</button>
+          <button class="arcade secondary" id="tut-practice" onclick="startPractice()" style="display:none">TRY PRACTICE ROUND</button>
           <button class="arcade" id="tut-next" onclick="nextTutorial()">NEXT</button>
-          <button class="arcade secondary" onclick="skipTutorial()">SKIP &amp; PLAY</button>
+          <button class="arcade secondary" id="tut-skip" onclick="skipTutorial()">SKIP &amp; PLAY</button>
         </div>
         <div class="key-hint">← / → navigate slides · ↑ / ↓ navigate buttons · ENTER select · ESC skip</div>
       </div>
@@ -253,8 +323,8 @@
   // If both are empty, the game falls back to a per-device localStorage
   // leaderboard. Once both are filled in (and you've run the SQL setup
   // in Supabase), the leaderboard becomes shared across all players.
-  const SUPABASE_URL      = 'https://amilxsitswbyeyrpfznc.supabase.co';   // e.g. 'https://abcdefghij.supabase.co'
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtaWx4c2l0c3dieWV5cnBmem5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MjczMTYsImV4cCI6MjA5NDQwMzMxNn0.7HeFQrlbEYjjPixw84q1gn-paqj6UND_TXaR9FAIMRg';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  const SUPABASE_URL      = '';   // e.g. 'https://abcdefghij.supabase.co'
+  const SUPABASE_ANON_KEY = '';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
   // ============================================================
 
   const canvas = document.getElementById('game');
@@ -293,6 +363,12 @@
   let pmsAssigned = null;
   let assignedAccreditation = null;
   let assignedAssociation = null;
+  let shieldCharges = 0;
+  const MAX_SHIELD_CHARGES = 3;
+  let practiceMode = false;
+  let practiceStage = 0;
+  let practiceTransitioning = false;
+  let PRACTICE_STAGES = null;
   let powerupSchedule = [];
   let highScore = 0;
   let recentMessages = [];
@@ -473,6 +549,141 @@
     return { type: 'powerup', key: spec.key, category: spec.category, label, short: spec.short, displayShort, variant, x, y: PLAY_TOP, vy: 30, vx: (Math.random() - 0.5) * 20, pulse: 0 };
   }
 
+  // ---------- Practice mode (interactive tutorial) ----------
+  PRACTICE_STAGES = [
+    { type: 'catch',  title: 'CATCH THE LEISURE GUEST',         hint: 'Move with arrow keys — guest worth 1 point.',                     spawn: () => { const g = makeGuest(W/2 + (Math.random()-0.5)*240); g.tier='leisure';   g.gender = Math.random()<0.5?'m':'f'; g.label='LEISURE';   return g; } },
+    { type: 'catch',  title: 'CATCH THE CORPORATE GUEST',       hint: 'Briefcase = corporate. Worth 5 points each.',                    spawn: () => { const g = makeGuest(W/2 + (Math.random()-0.5)*240); g.tier='corporate'; g.gender = Math.random()<0.5?'m':'f'; g.label='CORPORATE'; return g; } },
+    { type: 'dodge',  title: 'DODGE THE MARKET FACTOR',         hint: 'These cost you points. Move out of their path.',                  spawn: () => { const o = makeObstacle(W/2 + (Math.random()-0.5)*240); o.subtype = OBSTACLES.find(x => x.key === 'pricing'); return o; } },
+    { type: 'dodge',  title: 'DODGE THE GDS BARRIER',           hint: 'Orange border = barrier that TrustedStays clears for real suppliers.', spawn: () => { const o = makeObstacle(W/2 + (Math.random()-0.5)*240); o.subtype = OBSTACLES.find(x => x.key === 'technical'); return o; } },
+    { type: 'catch',  title: 'CATCH THE BONUS EVENT',           hint: 'Sparkles trigger peak season or bonus guests.',                  spawn: () => { const e = makeEvent(W/2 + (Math.random()-0.5)*240); return e; } },
+    { type: 'catch',  title: 'CATCH THE ACCREDITATION',         hint: 'Gives you a shield. Catch all three to stack up to 3 shields!',  spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'accred'),      { variantOverride: 'qit',      x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE INDUSTRY MEMBERSHIP',   hint: 'ARL widens your beam, STAA splits it into 3.',                   spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'association'), { variantOverride: 'arl',      x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE RATE CODE',             hint: 'BAR boosts leisure guests, COR boosts corporate.',               spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'bar'),         { x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE POLICY',                hint: 'You need BOTH 24h cancel AND 1-night LOS for GDS.',              spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'cancel'),      { x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE PMS',                   hint: 'Hospiria or Guesty — either fills the slot.',                    spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'pms'),         { variantOverride: 'hospiria', x: W/2 + (Math.random()-0.5)*240 }) }
+  ];
+
+  function practiceSpawnCurrent() {
+    if (!PRACTICE_STAGES || practiceStage >= PRACTICE_STAGES.length) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    const item = stage.spawn();
+    item.y = PLAY_TOP + 20;
+    if (item.vy !== undefined) item.vy = 32;
+    item._practiceTag = practiceStage;
+    items.push(item);
+  }
+
+  function practiceUpdateNote() {
+    if (!PRACTICE_STAGES) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    if (!stage) return;
+    document.getElementById('practice-title').textContent = stage.title;
+    document.getElementById('practice-hint').textContent = stage.hint;
+    document.getElementById('practice-progress').textContent = (practiceStage + 1) + ' / ' + PRACTICE_STAGES.length;
+  }
+
+  // Decide success/failure when a practice item is removed
+  function practiceItemRemoved(item, reason) {
+    if (!practiceMode || practiceTransitioning) return;
+    if (item._practiceTag !== practiceStage) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    if (!stage) return;
+    const isCatch     = stage.type === 'catch';
+    const isCollided  = reason === 'collided';
+    const isOffscreen = reason === 'offscreen';
+    const success     = (isCatch && isCollided) || (!isCatch && isOffscreen);
+    if (success) {
+      pushMessage(isCatch ? 'NICE! Caught it.' : 'NICE! Dodged it.', COLORS.mintBright, 2);
+      practiceAdvance();
+    } else {
+      if (isCatch) {
+        pushMessage('Oh no — you missed it! Try again.', COLORS.peach, 3);
+      } else {
+        pushMessage('You hit the hazard — you would have lost a life. Try to dodge!', COLORS.peach, 3);
+      }
+      practiceTransitioning = true;
+      setTimeout(() => {
+        if (!practiceMode) return;
+        practiceTransitioning = false;
+        practiceSpawnCurrent();
+      }, 1500);
+    }
+  }
+
+  function practiceAdvance() {
+    if (practiceTransitioning) return;
+    practiceTransitioning = true;
+    practiceStage++;
+    items = items.filter(it => false); // clear stragglers
+    if (practiceStage >= PRACTICE_STAGES.length) {
+      setTimeout(() => {
+        practiceMode = false;
+        running = false;
+        document.getElementById('practice-note').style.display = 'none';
+        showPracticeDone();
+      }, 500);
+      return;
+    }
+    practiceUpdateNote();
+    setTimeout(() => {
+      practiceTransitioning = false;
+      practiceSpawnCurrent();
+    }, 800);
+  }
+
+  window.startPractice = function() {
+    hideAllOverlays();
+    score = 0; lives = 3; collected.clear(); items = []; particles = []; recentMessages = [];
+    waveTimer = 0; multiplierTimer = 0; scoreMultiplier = 1;
+    slowTimer = 0; beamBlockTimer = 0; damageFlash = 0;
+    gdsActive = false; pmsAssigned = null; assignedAccreditation = null; assignedAssociation = null;
+    shieldCharges = 0;
+    powerupSchedule = new Array(POWERUP_LIST.length).fill(true);
+    timeLeft = totalTime;
+    player.x = W/2;
+    initStars();
+    practiceMode = true;
+    practiceStage = 0;
+    practiceTransitioning = true;   // prevent the update loop from advancing before the first item exists
+    document.getElementById('practice-note').style.display = 'block';
+    practiceUpdateNote();
+    running = true;
+    setTimeout(() => {
+      practiceSpawnCurrent();
+      practiceTransitioning = false; // ok to advance once the first item is in flight
+    }, 400);
+    if (canvas.focus) canvas.focus();
+  };
+
+  window.skipPractice = function() {
+    practiceMode = false;
+    running = false;
+    document.getElementById('practice-note').style.display = 'none';
+    items = []; particles = []; recentMessages = [];
+    hideAllOverlays();
+    document.getElementById('overlay-start').style.display = 'flex';
+    setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 60);
+  };
+
+  function showPracticeDone() {
+    const overlay = document.getElementById('overlay-tutorial');
+    overlay.innerHTML = `
+      <div style="text-align:center;max-width:520px">
+        <h2 style="font-family:'Press Start 2P',monospace;color:#B4DCB9;font-size:18px;margin:0 0 14px;line-height:1.5;text-shadow:0 0 12px rgba(149,200,157,0.4)">PRACTICE<br>COMPLETE!</h2>
+        <p style="font-size:12px;color:white;line-height:1.55">Nice — you have tried every object. Now play for real: 90 seconds, full hazards, every score counts. Try to catch all 7 power-ups and unlock the Amadeus GDS surge.</p>
+        <p style="font-size:11px;color:#E68760;line-height:1.45;margin-top:8px"><strong>Tip:</strong> catching multiple accreditations stacks your shield — try to grab all three!</p>
+        <div style="margin-top:18px;display:flex;flex-wrap:wrap;justify-content:center;gap:8px">
+          <button class="arcade" onclick="startGame()">START REAL GAME</button>
+          <button class="arcade secondary" onclick="closePracticeDone()">BACK TO MENU</button>
+        </div>
+        <div class="key-hint">ENTER select · ESC back</div>
+      </div>
+    `;
+    overlay.style.display = 'flex';
+  }
+
+  window.closePracticeDone = function() { location.reload(); };
+
   function spawnSlot(spec, opts) {
     opts = opts || {};
     if (spec.category === 'accred-multi') {
@@ -527,7 +738,8 @@
       else if (useColor === COLORS.burntOrange) useColor = COLORS.amadeusBlue;
     }
     recentMessages.push({ text, color: useColor, life: duration || 2.6 });
-    if (recentMessages.length > 5) recentMessages.shift();
+    const max = gdsActive ? 2 : 5;
+    if (recentMessages.length > max) recentMessages.shift();
   }
   function obstacleTagline(o) {
     if (o.group !== 'barrier') return null;
@@ -540,21 +752,28 @@
     const e = o.subtype;
     damageFlash = 0.5;
     if (e.effect === 'damage') {
-      if (collected.has('accred')) {
-        // Shield consumed — slot empties, but accreditation respawns for last-chance grab
-        collected.delete('accred');
+      if (shieldCharges > 0) {
+        // Burn one shield charge. Slot stays filled until charges hit zero.
+        shieldCharges -= 1;
         const accLabel = assignedAccreditation
           ? ACCRED_OPTIONS.find(a => a.id === assignedAccreditation).label
           : 'Accreditation';
-        spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD USED');
-        pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase(), COLORS.mint, 4);
-        pushMessage('Accreditation respawning — last chance for Amadeus GDS!', COLORS.peach, 5);
+        spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD ' + shieldCharges + '/' + MAX_SHIELD_CHARGES);
+        if (shieldCharges > 0) {
+          pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase() + ' · ' + shieldCharges + ' charges left', COLORS.mint, 4);
+          maybeTagline(e);
+          return;
+        }
+        // Last shield used — empty the slot and respawn accreditation for a recovery chance
+        collected.delete('accred');
+        assignedAccreditation = null;
+        pushMessage('All shields used by ' + e.label.toLowerCase() + ' — accreditation respawning!', COLORS.peach, 5);
         maybeTagline(e);
         setTimeout(() => {
           if (!running || gdsActive || collected.has('accred')) return;
           const accSpec = POWERUP_LIST.find(p => p.key === 'accred');
           spawnSlot(accSpec, { silent: true });
-          pushMessage('LAST CHANCE: catch any accreditation for Amadeus GDS!', COLORS.peach, 5);
+          pushMessage('LAST CHANCE: catch any accreditation to restore your shield!', COLORS.peach, 5);
         }, 4000);
         return;
       }
@@ -634,6 +853,7 @@
     waveInterval = 0.5;
     scoreMultiplier = 1.5;
     multiplierTimer = 18;
+    recentMessages = [];
     spawnParticle(W/2, PLAY_TOP + PLAY_H/2 - 40, COLORS.amadeusLight, 'AMADEUS GDS', true);
     setTimeout(() => spawnParticle(W/2, PLAY_TOP + PLAY_H/2, COLORS.white, 'UNLOCKED!', true), 350);
     setTimeout(() => spawnParticle(W/2, PLAY_TOP + PLAY_H/2 + 40, COLORS.amadeusLight, 'CORPORATE DEMAND SURGE', true), 700);
@@ -678,30 +898,40 @@
     if (keys['arrowright'] || keys['d']) dx += 1;
     const usingKeys = dx !== 0;
     const slowFactor = slowTimer > 0 ? 0.55 : 1;
-    if (usingKeys) player.x += dx * player.baseSpeed * slowFactor * 60 * dt;
-    else if (mouseX !== null) {
-      const mdx = mouseX - player.x;
-      if (Math.abs(mdx) > 3) {
+    if (usingKeys) {
+      // Keyboard: gradual movement at baseSpeed (unchanged — feedback said keys feel right)
+      player.x += dx * player.baseSpeed * slowFactor * 60 * dt;
+    } else if (mouseX !== null) {
+      // Mouse / touch: snap directly to the cursor for instant response.
+      // When weather is slowing the ship we still cap per-frame travel so the slow effect is felt.
+      if (slowTimer > 0) {
+        const mdx = mouseX - player.x;
         const sign = Math.sign(mdx);
-        const mv = Math.min(Math.abs(mdx), player.baseSpeed * slowFactor * 60 * dt);
-        player.x += sign * mv;
+        const cap = player.baseSpeed * slowFactor * 60 * dt * 4;
+        player.x += sign * Math.min(Math.abs(mdx), cap);
+      } else {
+        player.x = mouseX;
       }
     }
     player.x = Math.max(player.w/2 + 10, Math.min(W - player.w/2 - 10, player.x));
 
-    waveTimer += dt;
-    if (waveTimer >= waveInterval) { waveTimer = 0; spawnWave(); }
+    if (!practiceMode) {
+      waveTimer += dt;
+      if (waveTimer >= waveInterval) { waveTimer = 0; spawnWave(); }
+    }
 
-    const elapsed = totalTime - timeLeft;
-    for (let i = 0; i < POWERUP_LIST.length; i++) {
-      if (!powerupSchedule[i] && elapsed >= POWERUP_LIST[i].time) {
-        powerupSchedule[i] = true;
-        spawnSlot(POWERUP_LIST[i]);
+    if (!practiceMode) {
+      const elapsed = totalTime - timeLeft;
+      for (let i = 0; i < POWERUP_LIST.length; i++) {
+        if (!powerupSchedule[i] && elapsed >= POWERUP_LIST[i].time) {
+          powerupSchedule[i] = true;
+          spawnSlot(POWERUP_LIST[i]);
+        }
       }
     }
 
     reminderTimer += dt;
-    if (reminderTimer >= 18 && !gdsActive && collected.size < TOTAL_REQUIRED && timeLeft > 15) {
+    if (!practiceMode && reminderTimer >= 18 && !gdsActive && collected.size < TOTAL_REQUIRED && timeLeft > 15) {
       reminderTimer = 0;
       const remaining = TOTAL_REQUIRED - collected.size;
       pushMessage('Need ' + remaining + ' more power-up' + (remaining > 1 ? 's' : '') + ' for Amadeus GDS!', COLORS.peach, 4);
@@ -713,15 +943,26 @@
       if (it.sway !== undefined) { it.sway += dt * 1.6; it.x += Math.sin(it.sway) * 8 * dt; }
       if (it.type === 'event') it.rotation += dt * 1.6;
       const inBeam = pointInBeam(it.x, it.y);
-      if (it.type === 'guest' || it.type === 'event' || it.type === 'powerup') {
+      // Guests and power-ups: snap-in feel with vy boost (unchanged behaviour you said felt right)
+      if (it.type === 'guest' || it.type === 'powerup') {
         if (inBeam) {
           const dxp = player.x - it.x;
           it.x += dxp * Math.min(1, dt * 4);
           it.vy = Math.max(it.vy, 220);
         }
       }
+      // Events: pulled toward player but NO vy boost — fixes the "disappear halfway" issue
+      // Hazards: pulled into beam for challenge, but no boost so they remain dodgeable
+      if (it.type === 'event' || it.type === 'obstacle') {
+        if (inBeam) {
+          const dxp = player.x - it.x;
+          it.x += dxp * Math.min(1, dt * 4);
+        }
+      }
       if (it.y > PLAY_BOTTOM + 30) {
-        if (it.type === 'powerup') {
+        if (practiceMode) {
+          practiceItemRemoved(it, 'offscreen');
+        } else if (it.type === 'powerup') {
           const slotKey = it.key;
           if (!collected.has(slotKey)) {
             const lbl = (it.label || '').toUpperCase();
@@ -746,25 +987,52 @@
       if (it.type === 'guest') {
         const d = Math.hypot(it.x - player.x, it.y - player.y);
         if (d < 32) {
-          let baseValue = it.tier === 'corporate' ? 5 : 1;
-          if (it.tier === 'leisure' && collected.has('bar')) baseValue += 1;
-          if (it.tier === 'corporate' && collected.has('cor')) baseValue += 5;
-          const val = Math.round(baseValue * scoreMultiplier);
-          score += val;
-          const c = it.tier === 'corporate' ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : COLORS.leisureBlue;
-          spawnParticle(it.x, it.y - 6, c, '+' + val);
+          if (practiceMode) {
+            spawnParticle(it.x, it.y - 6, COLORS.mintBright, '+ CAUGHT');
+            practiceItemRemoved(it, 'collided');
+          } else {
+            let baseValue = it.tier === 'corporate' ? 5 : 1;
+            if (it.tier === 'leisure' && collected.has('bar')) baseValue += 1;
+            if (it.tier === 'corporate' && collected.has('cor')) baseValue += 5;
+            const val = Math.round(baseValue * scoreMultiplier);
+            score += val;
+            const c = it.tier === 'corporate' ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : COLORS.leisureBlue;
+            spawnParticle(it.x, it.y - 6, c, '+' + val);
+          }
           return false;
         }
       } else if (it.type === 'powerup') {
         const d = Math.hypot(it.x - player.x, it.y - player.y);
-        if (d < 32) { collectPowerup(it); return false; }
+        if (d < 32) {
+          if (practiceMode) {
+            spawnParticle(it.x, it.y, COLORS.mintBright, '+ CAUGHT');
+            practiceItemRemoved(it, 'collided');
+          } else {
+            collectPowerup(it);
+          }
+          return false;
+        }
       } else if (it.type === 'event') {
         const d = Math.hypot(it.x - player.x, it.y - player.y);
-        if (d < 30) { applyEvent(it); return false; }
-        if (inBeam && it.y > PLAY_TOP + PLAY_H * 0.3) { applyEvent(it); return false; }
+        // Events only trigger when they reach the player — beam pulls them in like guests.
+        if (d < 32) {
+          if (practiceMode) {
+            spawnParticle(it.x, it.y, COLORS.mintBright, '+ CAUGHT');
+            practiceItemRemoved(it, 'collided');
+          } else {
+            applyEvent(it);
+          }
+          return false;
+        }
       } else if (it.type === 'obstacle') {
         if (it.x + it.w/2 > playerLeft && it.x - it.w/2 < playerRight && it.y + it.h/2 > playerTop && it.y - it.h/2 < playerBottom) {
-          applyObstacleEffect(it); return false;
+          if (practiceMode) {
+            damageFlash = 0.3;
+            practiceItemRemoved(it, 'collided');
+          } else {
+            applyObstacleEffect(it);
+          }
+          return false;
         }
       }
       return true;
@@ -781,8 +1049,10 @@
     particles = particles.filter(p => { p.y += p.vy; p.life -= dt * 1.2; return p.life > 0; });
     recentMessages = recentMessages.filter(m => { m.life -= dt; return m.life > 0; });
     stars.forEach(s => { s.y += s.vy * dt; if (s.y > H + 4) { s.y = -4; s.x = Math.random() * W; } });
-    timeLeft -= dt;
-    if (timeLeft <= 0) endGame(false);
+    if (!practiceMode) {
+      timeLeft -= dt;
+      if (timeLeft <= 0) endGame(false);
+    }
   }
 
   // ---------- Drawing ----------
@@ -923,12 +1193,17 @@
       ctx.beginPath();
       ctx.arc(player.x, player.y, player.w/2 + 12, 0, Math.PI*2);
       ctx.stroke();
-    } else if (collected.has('accred')) {
-      ctx.strokeStyle = 'rgba(149,200,157,0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.w/2 + 10, 0, Math.PI*2);
-      ctx.stroke();
+    } else if (shieldCharges > 0) {
+      // One concentric ring per shield charge — visibly thicker stack = more shields
+      for (let i = 0; i < shieldCharges; i++) {
+        ctx.strokeStyle = `rgba(149,200,157,${0.75 - i * 0.18})`;
+        ctx.lineWidth = 2;
+        ctx.setLineDash(i === 0 ? [] : [4, 3]);
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.w/2 + 10 + i * 5, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
     drawHouseSprite(player.x, player.y, 4);
   }
@@ -1038,7 +1313,7 @@
       ctx.globalAlpha = 1;
     });
     if (scoreMultiplier > 1 && !gdsActive) drawText('PEAK SEASON x' + scoreMultiplier, W/2, HUD_TOP_H + 8, 10, COLORS.mintBright, 'center');
-    if (gdsActive && scoreMultiplier > 1) drawText('AMADEUS GDS x' + scoreMultiplier, W/2, HUD_TOP_H + 30, 10, COLORS.amadeusLight, 'center');
+    if (gdsActive && scoreMultiplier > 1) drawText('x' + scoreMultiplier + ' SCORE BOOST', W - 14, HUD_TOP_H + 32, 8, COLORS.amadeusLight, 'right');
   }
   function drawBackground() {
     ctx.fillStyle = COLORS.navyDeep;
@@ -1344,7 +1619,10 @@
     document.querySelectorAll('.tut-slide').forEach((el, i) => el.classList.toggle('active', i === tutSlide));
     document.querySelectorAll('#tut-progress .tut-dot').forEach((el, i) => el.classList.toggle('active', i === tutSlide));
     document.getElementById('tut-back').disabled = tutSlide === 0;
-    document.getElementById('tut-next').textContent = tutSlide === TUT_SLIDES - 1 ? 'PRESS START' : 'NEXT';
+    document.getElementById('tut-next').textContent = tutSlide === TUT_SLIDES - 1 ? 'PLAY' : 'NEXT';
+    document.getElementById('tut-practice').style.display = tutSlide === TUT_SLIDES - 1 ? '' : 'none';
+    // On the last slide, PLAY replaces SKIP & PLAY — hide skip to avoid redundancy
+    document.getElementById('tut-skip').style.display = tutSlide === TUT_SLIDES - 1 ? 'none' : '';
     drawTutorialVisuals();
     setTimeout(() => { const nextBtn = document.getElementById('tut-next'); if (nextBtn) nextBtn.focus(); }, 60);
   }
@@ -1452,6 +1730,7 @@
     multiplierTimer = 0; scoreMultiplier = 1;
     slowTimer = 0; beamBlockTimer = 0; damageFlash = 0;
     gdsActive = false; pmsAssigned = null; assignedAccreditation = null; assignedAssociation = null;
+    shieldCharges = 0;
     powerupSchedule = new Array(POWERUP_LIST.length).fill(false);
     reminderTimer = 0;
     player.x = W/2;
