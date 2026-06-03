@@ -101,6 +101,67 @@
 
   .footer { margin-top: 14px; font-size: 11px; color: var(--navy); opacity: 0.5; font-family: 'Press Start 2P', monospace; letter-spacing: 0.05em; }
   .key-hint { font-size: 9px; color: var(--mint); opacity: 0.75; margin-top: 6px; }
+
+  /* Sticky-note hint that appears over the canvas during practice mode */
+  .practice-note {
+    position: absolute;
+    top: 76px;
+    right: 16px;
+    background: #FFD96B;
+    color: var(--navy-deep);
+    padding: 12px 14px 14px;
+    border-radius: 3px;
+    font-family: 'Rubik', sans-serif;
+    font-size: 12px;
+    width: 220px;
+    z-index: 4;
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.05);
+    transform: rotate(-2deg);
+  }
+  .practice-note::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%) rotate(2deg);
+    width: 40px;
+    height: 14px;
+    background: rgba(195,80,55,0.55);
+    border-radius: 1px;
+  }
+  .practice-note .practice-progress {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--burnt-orange);
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+  }
+  .practice-note .practice-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    color: var(--navy-deep);
+  }
+  .practice-note .practice-hint {
+    font-size: 11px;
+    line-height: 1.45;
+    margin-bottom: 12px;
+    color: var(--navy);
+  }
+  .practice-note .practice-skip {
+    background: var(--navy-deep);
+    color: var(--mint-bright);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 3px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    cursor: pointer;
+    width: 100%;
+  }
+  .practice-note .practice-skip:hover { background: #2d3760; }
+
   @media (max-width: 740px) { .cabinet { width: 100%; padding: 8px; } }
 </style>
 </head>
@@ -114,6 +175,14 @@
       <canvas id="game" width="700" height="780"></canvas>
       <div class="scanlines"></div>
       <div class="vignette"></div>
+
+      <!-- Sticky-note hint for practice mode -->
+      <div class="practice-note" id="practice-note" style="display:none">
+        <div class="practice-progress" id="practice-progress">1 / 10</div>
+        <div class="practice-title" id="practice-title">CATCH THE GUEST</div>
+        <div class="practice-hint" id="practice-hint">Move under it and let your beam pull it in.</div>
+        <button class="practice-skip" onclick="skipPractice()">SKIP PRACTICE</button>
+      </div>
 
       <!-- TUTORIAL -->
       <div class="overlay" id="overlay-tutorial">
@@ -130,9 +199,8 @@
           <div class="legend">
             <div class="legend-item"><span class="swatch" style="background:#A8C0E0"></span>Leisure guest 1pt</div>
             <div class="legend-item"><span class="swatch" style="background:#E68760"></span>Corporate guest 5pts (briefcase)</div>
-            <div class="legend-item"><span class="swatch" style="background:#B4DCB9;border-radius:50%"></span>Bonus event</div>
           </div>
-          <p style="font-size:11px;opacity:0.85">Sparkle <strong>bonus events</strong> drop peak-season 2x multipliers or extra guests. Rate codes (BAR/COR) boost guest values further.</p>
+          <p style="font-size:11px;opacity:0.85">Catch guests for points. Rate codes (BAR/COR) boost their value further.</p>
         </div>
         <div class="tut-slide" data-slide="2">
           <h2>WATCH FOR HAZARDS</h2>
@@ -158,8 +226,8 @@
             <div class="tut-section collect-both">
               <div class="tut-section-title">COLLECT BOTH</div>
               <ul class="tut-list">
-                <li><strong>Rate Access Codes</strong> — collect both: BAR (Best Available Rate) AND COR (Corporate Rate)</li>
-                <li><strong>Policies</strong> — collect both: 24 Hour Cancellation AND 1 Night Length of Stay</li>
+                <li><strong>Rate Access Codes</strong> — collect both: BAR + COR. Each one also <strong>dissolves all hazards</strong> on screen!</li>
+                <li><strong>Policies</strong> — collect both: 24h Cancel + 1-night LOS. Each one gives <strong>5 seconds of invulnerability</strong>.</li>
               </ul>
             </div>
           </div>
@@ -170,8 +238,9 @@
         </div>
         <div class="form-actions">
           <button class="arcade secondary" id="tut-back" onclick="prevTutorial()" disabled>BACK</button>
+          <button class="arcade secondary" id="tut-practice" onclick="startPractice()" style="display:none">TRY PRACTICE ROUND</button>
           <button class="arcade" id="tut-next" onclick="nextTutorial()">NEXT</button>
-          <button class="arcade secondary" onclick="skipTutorial()">SKIP &amp; PLAY</button>
+          <button class="arcade secondary" id="tut-skip" onclick="skipTutorial()">SKIP &amp; PLAY</button>
         </div>
         <div class="key-hint">← / → navigate slides · ↑ / ↓ navigate buttons · ENTER select · ESC skip</div>
       </div>
@@ -185,7 +254,6 @@
           <div class="legend-item"><span class="swatch" style="background:#E68760"></span>Corporate 5pts</div>
           <div class="legend-item"><span class="swatch" style="background:#344167;border:1px solid #95C89D"></span>Market factor</div>
           <div class="legend-item"><span class="swatch" style="background:#344167;border:1px solid #C35037"></span>GDS barrier</div>
-          <div class="legend-item"><span class="swatch" style="background:#B4DCB9;border-radius:50%"></span>Bonus event</div>
         </div>
         <div style="margin-top:12px">
           <button class="arcade" id="btn-start" onclick="startGame()">PRESS START</button>
@@ -219,6 +287,20 @@
         <div class="key-hint">ENTER submit · ESC skip</div>
       </div>
 
+      <!-- PRACTICE COMPLETE (separate overlay so it doesn't destroy the tutorial DOM) -->
+      <div class="overlay" id="overlay-practice-done" style="display:none">
+        <div style="text-align:center;max-width:520px">
+          <h2 style="font-family:'Press Start 2P',monospace;color:#B4DCB9;font-size:18px;margin:0 0 14px;line-height:1.5;text-shadow:0 0 12px rgba(149,200,157,0.4)">PRACTICE<br>COMPLETE!</h2>
+          <p style="font-size:12px;color:white;line-height:1.55">Nice — you've tried every object. Now play for real: 90 seconds, full hazards, every score counts. Catch all 7 power-ups to unlock the Amadeus GDS surge.</p>
+          <p style="font-size:11px;color:#E68760;line-height:1.45;margin-top:8px"><strong>Tip:</strong> catching multiple accreditations stacks your shield — try to grab all three!</p>
+          <div class="form-actions" style="margin-top:18px">
+            <button class="arcade" id="btn-pd-play" onclick="startGame()">START REAL GAME</button>
+            <button class="arcade secondary" id="btn-pd-menu" onclick="closePracticeDone()">BACK TO MENU</button>
+          </div>
+          <div class="key-hint">ENTER select · ESC back</div>
+        </div>
+      </div>
+
       <!-- LEADERBOARD -->
       <div class="overlay" id="overlay-leaderboard" style="display:none">
         <h2>LEADERBOARD</h2>
@@ -240,7 +322,7 @@
     </div>
     <div class="controls-strip">
       <div>MOVE: <span>← →</span> / <span>A D</span> / <span>MOUSE</span> · <span>ESC</span> menu</div>
-      <div><button class="lb-link" onclick="showLeaderboard()">LEADERBOARD</button> · <button class="lb-link" onclick="showTutorial()">TUTORIAL</button></div>
+      <div><button class="lb-link" onclick="showLeaderboard()">LEADERBOARD</button> · <button class="lb-link" onclick="pauseGameAndShowTutorial()">TUTORIAL</button></div>
     </div>
   </div>
   <div class="footer">TRUSTEDSTAYS · INSERT COIN</div>
@@ -253,8 +335,8 @@
   // If both are empty, the game falls back to a per-device localStorage
   // leaderboard. Once both are filled in (and you've run the SQL setup
   // in Supabase), the leaderboard becomes shared across all players.
-  const SUPABASE_URL      = 'https://amilxsitswbyeyrpfznc.supabase.co';   // e.g. 'https://abcdefghij.supabase.co'
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtaWx4c2l0c3dieWV5cnBmem5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4MjczMTYsImV4cCI6MjA5NDQwMzMxNn0.7HeFQrlbEYjjPixw84q1gn-paqj6UND_TXaR9FAIMRg';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  const SUPABASE_URL      = '';   // e.g. 'https://abcdefghij.supabase.co'
+  const SUPABASE_ANON_KEY = '';   // e.g. 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
   // ============================================================
 
   const canvas = document.getElementById('game');
@@ -293,6 +375,14 @@
   let pmsAssigned = null;
   let assignedAccreditation = null;
   let assignedAssociation = null;
+  let shieldCharges = 0;
+  const MAX_SHIELD_CHARGES = 3;
+  let invulnerableTimer = 0;       // policies grant 5s invulnerability per catch (stacks)
+  let powerupFeedbacks = [];       // animated arrows showing what each caught power-up affected
+  let practiceMode = false;
+  let practiceStage = 0;
+  let practiceTransitioning = false;
+  let PRACTICE_STAGES = null;
   let powerupSchedule = [];
   let highScore = 0;
   let recentMessages = [];
@@ -322,8 +412,9 @@
     { id: 'visitbritain', label: 'VisitBritain',       short: 'VBR' }
   ];
   const ASSOC_OPTIONS = [
-    { id: 'arl',  label: 'ARL',  short: 'ARL' },
-    { id: 'staa', label: 'STAA', short: 'STA' }
+    { id: 'arl',  label: 'ARL',  short: 'ARL' },   // wide beam
+    { id: 'staa', label: 'STAA', short: 'STA' },   // triple beam
+    { id: 'asap', label: 'ASAP', short: 'ASA' }    // cone beam (wide at top, narrow at player)
   ];
   const PMS_OPTIONS = [
     { id: 'hospiria', label: 'Hospiria', short: 'HOS' },
@@ -473,6 +564,135 @@
     return { type: 'powerup', key: spec.key, category: spec.category, label, short: spec.short, displayShort, variant, x, y: PLAY_TOP, vy: 30, vx: (Math.random() - 0.5) * 20, pulse: 0 };
   }
 
+  // ---------- Practice mode (interactive tutorial) ----------
+  PRACTICE_STAGES = [
+    { type: 'catch',  title: 'CATCH THE LEISURE GUEST',         hint: 'Move with arrow keys — guest worth 1 point.',                     spawn: () => { const g = makeGuest(W/2 + (Math.random()-0.5)*240); g.tier='leisure';   g.gender = Math.random()<0.5?'m':'f'; g.label='LEISURE';   return g; } },
+    { type: 'catch',  title: 'CATCH THE CORPORATE GUEST',       hint: 'Briefcase = corporate. Worth 5 points each.',                    spawn: () => { const g = makeGuest(W/2 + (Math.random()-0.5)*240); g.tier='corporate'; g.gender = Math.random()<0.5?'m':'f'; g.label='CORPORATE'; return g; } },
+    { type: 'dodge',  title: 'DODGE THE MARKET FACTOR',         hint: 'Conflict costs you a life — dodge it or your shield will absorb it.', spawn: () => { const o = makeObstacle(W/2 + (Math.random()-0.5)*240); o.subtype = OBSTACLES.find(x => x.key === 'conflict'); return o; } },
+    { type: 'dodge',  title: 'DODGE THE GDS BARRIER',           hint: 'Legal costs you a life — TrustedStays handles compliance for real suppliers.', spawn: () => { const o = makeObstacle(W/2 + (Math.random()-0.5)*240); o.subtype = OBSTACLES.find(x => x.key === 'legal'); return o; } },
+    { type: 'catch',  title: 'CATCH THE ACCREDITATION',         hint: 'Gives you a shield. Catch all three to stack up to 3 shields!',  spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'accred'),      { variantOverride: 'qit',      x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE INDUSTRY MEMBERSHIP',   hint: 'ARL=wide · STAA=triple · ASAP=cone. New ones spawn during the game so you can swap beam.', spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'association'), { variantOverride: 'arl',      x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE RATE CODE',             hint: 'BAR/COR boost guest values AND dissolve every hazard on screen.', spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'bar'),         { x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE POLICY',                hint: 'Both required for GDS — and each grants 5s invulnerability!',     spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'cancel'),      { x: W/2 + (Math.random()-0.5)*240 }) },
+    { type: 'catch',  title: 'CATCH THE PMS',                   hint: 'Hospiria or Guesty — either fills the slot.',                    spawn: () => makePowerup(POWERUP_LIST.find(p => p.key === 'pms'),         { variantOverride: 'hospiria', x: W/2 + (Math.random()-0.5)*240 }) }
+  ];
+
+  function practiceSpawnCurrent() {
+    if (!PRACTICE_STAGES || practiceStage >= PRACTICE_STAGES.length) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    const item = stage.spawn();
+    item.y = PLAY_TOP + 20;
+    if (item.vy !== undefined) item.vy = 32;
+    item._practiceTag = practiceStage;
+    items.push(item);
+  }
+
+  function practiceUpdateNote() {
+    if (!PRACTICE_STAGES) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    if (!stage) return;
+    document.getElementById('practice-title').textContent = stage.title;
+    document.getElementById('practice-hint').textContent = stage.hint;
+    document.getElementById('practice-progress').textContent = (practiceStage + 1) + ' / ' + PRACTICE_STAGES.length;
+  }
+
+  // Decide success/failure when a practice item is removed
+  function practiceItemRemoved(item, reason) {
+    if (!practiceMode || practiceTransitioning) return;
+    if (item._practiceTag !== practiceStage) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    if (!stage) return;
+    const isCatch     = stage.type === 'catch';
+    const isCollided  = reason === 'collided';
+    const isOffscreen = reason === 'offscreen';
+    const success     = (isCatch && isCollided) || (!isCatch && isOffscreen);
+    if (success) {
+      pushMessage(isCatch ? 'NICE! Caught it.' : 'NICE! Dodged it.', COLORS.mintBright, 2);
+      practiceAdvance();
+    } else {
+      if (isCatch) {
+        pushMessage('Oh no — you missed it! Try again.', COLORS.peach, 3);
+      } else {
+        pushMessage('You hit the hazard — you would have lost a life. Try to dodge!', COLORS.peach, 3);
+      }
+      practiceTransitioning = true;
+      setTimeout(() => {
+        if (!practiceMode) return;
+        practiceTransitioning = false;
+        practiceSpawnCurrent();
+      }, 1500);
+    }
+  }
+
+  function practiceAdvance() {
+    if (practiceTransitioning) return;
+    practiceTransitioning = true;
+    practiceStage++;
+    items = items.filter(it => false); // clear stragglers
+    if (practiceStage >= PRACTICE_STAGES.length) {
+      setTimeout(() => {
+        practiceMode = false;
+        running = false;
+        document.getElementById('practice-note').style.display = 'none';
+        showPracticeDone();
+      }, 500);
+      return;
+    }
+    practiceUpdateNote();
+    setTimeout(() => {
+      practiceTransitioning = false;
+      practiceSpawnCurrent();
+    }, 800);
+  }
+
+  window.startPractice = function() {
+    hideAllOverlays();
+    score = 0; lives = 3; collected.clear(); items = []; particles = []; recentMessages = [];
+    waveTimer = 0; multiplierTimer = 0; scoreMultiplier = 1;
+    slowTimer = 0; beamBlockTimer = 0; damageFlash = 0;
+    gdsActive = false; pmsAssigned = null; assignedAccreditation = null; assignedAssociation = null;
+    shieldCharges = 0;
+    invulnerableTimer = 0;
+    powerupFeedbacks = [];
+    powerupSchedule = new Array(POWERUP_LIST.length).fill(true);
+    timeLeft = totalTime;
+    player.x = W/2;
+    initStars();
+    practiceMode = true;
+    practiceStage = 0;
+    practiceTransitioning = true;   // prevent the update loop from advancing before the first item exists
+    document.getElementById('practice-note').style.display = 'block';
+    practiceUpdateNote();
+    running = true;
+    setTimeout(() => {
+      practiceSpawnCurrent();
+      practiceTransitioning = false; // ok to advance once the first item is in flight
+    }, 400);
+    if (canvas.focus) canvas.focus();
+  };
+
+  window.skipPractice = function() {
+    practiceMode = false;
+    running = false;
+    document.getElementById('practice-note').style.display = 'none';
+    items = []; particles = []; recentMessages = [];
+    hideAllOverlays();
+    document.getElementById('overlay-start').style.display = 'flex';
+    setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 60);
+  };
+
+  function showPracticeDone() {
+    hideAllOverlays();
+    document.getElementById('overlay-practice-done').style.display = 'flex';
+    setTimeout(() => { const btn = document.getElementById('btn-pd-play'); if (btn) btn.focus(); }, 60);
+  }
+
+  window.closePracticeDone = function() {
+    hideAllOverlays();
+    document.getElementById('overlay-start').style.display = 'flex';
+    setTimeout(() => { const btn = document.getElementById('btn-start'); if (btn) btn.focus(); }, 60);
+  };
+
   function spawnSlot(spec, opts) {
     opts = opts || {};
     if (spec.category === 'accred-multi') {
@@ -483,11 +703,11 @@
         pushMessage('CATCH ANY ONE TO FILL THE SLOT', COLORS.mintBright, 4);
       }
     } else if (spec.category === 'association-multi') {
-      const xs = [180, W - 180];
+      const xs = [120, W/2, W - 120];
       ASSOC_OPTIONS.forEach((opt, i) => items.push(makePowerup(spec, { variantOverride: opt.id, x: xs[i] })));
       if (!opts.silent) {
-        pushMessage('INDUSTRY MEMBERSHIP INCOMING — ARL OR STAA', COLORS.peach, 4);
-        pushMessage('CATCH EITHER TO FILL THE SLOT', COLORS.mintBright, 4);
+        pushMessage('INDUSTRY MEMBERSHIP INCOMING — ARL · STAA · ASAP', COLORS.peach, 4);
+        pushMessage('ARL=wide · STAA=triple · ASAP=cone · catch any to switch beam', COLORS.mintBright, 5);
       }
     } else if (spec.category === 'pms-multi') {
       const xs = [180, W - 180];
@@ -507,13 +727,12 @@
     const margin = 70;
     const slotW = (W - margin * 2) / (cols - 1);
     const obstacleProb = gdsActive ? 0.05 : Math.min(0.45, 0.22 + (totalTime - timeLeft) / 260);
-    const eventProb = 0.10;
+    // Bonus events removed — only guests and hazards now
     for (let i = 0; i < cols; i++) {
       if (Math.random() < 0.18) continue;
       const x = margin + i * slotW + (Math.random() - 0.5) * 24;
       const r = Math.random();
-      if (r < eventProb) items.push(makeEvent(x));
-      else if (r < eventProb + obstacleProb) items.push(makeObstacle(x));
+      if (r < obstacleProb) items.push(makeObstacle(x));
       else items.push(makeGuest(x));
     }
   }
@@ -527,7 +746,8 @@
       else if (useColor === COLORS.burntOrange) useColor = COLORS.amadeusBlue;
     }
     recentMessages.push({ text, color: useColor, life: duration || 2.6 });
-    if (recentMessages.length > 5) recentMessages.shift();
+    const max = gdsActive ? 2 : 5;
+    if (recentMessages.length > max) recentMessages.shift();
   }
   function obstacleTagline(o) {
     if (o.group !== 'barrier') return null;
@@ -538,31 +758,59 @@
 
   function applyObstacleEffect(o) {
     const e = o.subtype;
+    // Policy invulnerability — hazards bounce off, no damage, no shield burn, no effect
+    if (invulnerableTimer > 0) {
+      damageFlash = 0.2;
+      spawnParticle(player.x, player.y - 20, COLORS.mintBright, 'INVULN!');
+      pushMessage(e.label + ' bounced off (policy active)', COLORS.mintBright, 2);
+      return;
+    }
     damageFlash = 0.5;
     if (e.effect === 'damage') {
-      if (collected.has('accred')) {
-        // Shield consumed — slot empties, but accreditation respawns for last-chance grab
-        collected.delete('accred');
+      if (shieldCharges > 0) {
+        // Burn one shield charge. Slot stays filled until charges hit zero.
+        shieldCharges -= 1;
         const accLabel = assignedAccreditation
           ? ACCRED_OPTIONS.find(a => a.id === assignedAccreditation).label
           : 'Accreditation';
-        spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD USED');
-        pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase(), COLORS.mint, 4);
-        pushMessage('Accreditation respawning — last chance for Amadeus GDS!', COLORS.peach, 5);
+        spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD ' + shieldCharges + '/' + MAX_SHIELD_CHARGES);
+        if (practiceMode) {
+          spawnTutorialFeedback(() => ({ x: player.x, y: player.y - 30 }), () => ({ x: player.x, y: player.y }), 'SHIELD ABSORBED', COLORS.mint, 1.5);
+        }
+        if (shieldCharges > 0) {
+          pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase() + ' · ' + shieldCharges + ' charges left', COLORS.mint, 4);
+          maybeTagline(e);
+          return;
+        }
+        // Last shield used — empty the slot and respawn accreditation for a recovery chance
+        collected.delete('accred');
+        assignedAccreditation = null;
+        pushMessage('All shields used by ' + e.label.toLowerCase() + ' — accreditation respawning!', COLORS.peach, 5);
         maybeTagline(e);
         setTimeout(() => {
           if (!running || gdsActive || collected.has('accred')) return;
           const accSpec = POWERUP_LIST.find(p => p.key === 'accred');
           spawnSlot(accSpec, { silent: true });
-          pushMessage('LAST CHANCE: catch any accreditation for Amadeus GDS!', COLORS.peach, 5);
+          pushMessage('LAST CHANCE: catch any accreditation to restore your shield!', COLORS.peach, 5);
         }, 4000);
         return;
       }
       lives = Math.max(0, lives - 1);
       spawnParticle(player.x, player.y - 30, COLORS.burntOrange, '-1 LIFE');
       pushMessage(e.label + ' cost you a life', COLORS.peach, 3);
+      if (practiceMode) {
+        spawnTutorialFeedback(() => ({ x: player.x, y: player.y - 20 }), livesTarget, '-1 LIFE', COLORS.peach, 1.8);
+      }
       maybeTagline(e);
-      if (lives <= 0) endGame(true);
+      if (lives <= 0) {
+        if (practiceMode) {
+          // Don't end the game during practice — refill lives so the round keeps demonstrating
+          lives = 3;
+          pushMessage('Practice mode — lives refilled. Keep going!', COLORS.mintBright, 3);
+        } else {
+          endGame(true);
+        }
+      }
     } else if (e.effect === 'penalty') {
       score = Math.max(0, score - e.amount);
       spawnParticle(player.x, player.y - 30, COLORS.burntOrange, '-' + e.amount);
@@ -607,14 +855,72 @@
       if (collected.has('pms')) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); pushMessage(p.label + ' PMS bonus +5', COLORS.mint, 3); return; }
       pmsAssigned = p.variant;
     } else if (p.category === 'accred-multi') {
-      if (collected.has('accred')) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); pushMessage(p.label + ' bonus +5', COLORS.mint, 3); return; }
-      assignedAccreditation = p.variant;
+      // Stacking shields — each accreditation caught adds a charge (max 3)
+      if (shieldCharges >= MAX_SHIELD_CHARGES) {
+        score += 5;
+        spawnParticle(p.x, p.y, COLORS.mint, '+5 BONUS');
+        pushMessage(p.label + ' (shield maxed) +5', COLORS.mint, 3);
+        return;
+      }
+      shieldCharges += 1;
+      if (!assignedAccreditation) assignedAccreditation = p.variant;
+      if (collected.has('accred')) {
+        // Slot already filled — extra accreditation just stacks the shield, no "unlocked" particle
+        spawnParticle(p.x, p.y, COLORS.mint, '+SHIELD');
+        pushMessage(p.label + ' added · shield ' + shieldCharges + '/' + MAX_SHIELD_CHARGES, COLORS.mintBright, 4);
+        return;
+      }
     } else if (p.category === 'association-multi') {
-      if (collected.has('association')) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); pushMessage(p.label + ' bonus +5', COLORS.mint, 3); return; }
+      // Subsequent catches let the player SWITCH their beam mid-game (not bonus points)
+      if (collected.has('association')) {
+        if (p.variant !== assignedAssociation) {
+          assignedAssociation = p.variant;
+          const beamType = p.variant === 'arl' ? 'wide' : p.variant === 'staa' ? 'triple' : 'cone';
+          spawnParticle(p.x, p.y, COLORS.peach, 'BEAM CHANGED', true);
+          pushMessage('Switched to ' + p.label + ' — ' + beamType + ' beam', COLORS.peach, 4);
+        } else {
+          score += 5;
+          spawnParticle(p.x, p.y, COLORS.mint, '+5');
+          pushMessage(p.label + ' bonus +5', COLORS.mint, 3);
+        }
+        scheduleAssociationRespawn();
+        return;
+      }
       assignedAssociation = p.variant;
+      scheduleAssociationRespawn();
     } else {
       if (collected.has(p.key)) { score += 5; spawnParticle(p.x, p.y, COLORS.mint, '+5'); return; }
     }
+    // Side-effects per power-up category
+    if (p.category === 'rate') {
+      // Flag obstacles for removal rather than reassigning `items` — the outer items.filter()
+      // in update() would otherwise overwrite our mutation as soon as its iteration finishes.
+      let dissolved = 0;
+      items.forEach(it => {
+        if (it.type === 'obstacle') {
+          spawnParticle(it.x, it.y, COLORS.amadeusLight, '*POOF*');
+          it._dissolved = true;
+          dissolved++;
+        }
+      });
+      // Sprinkle poofs across the screen so it's visible even when no hazards were present
+      for (let i = 0; i < 8; i++) {
+        const px = 60 + Math.random() * (W - 120);
+        const py = PLAY_TOP + 40 + Math.random() * (PLAY_H - 100);
+        spawnParticle(px, py, COLORS.mintBright, '*POOF*');
+      }
+      if (dissolved > 0) {
+        pushMessage(p.label + ' cleared ' + dissolved + ' hazard' + (dissolved > 1 ? 's' : ''), COLORS.amadeusLight, 3);
+      } else {
+        pushMessage(p.label + ' activated — corporate rate locked in', COLORS.mintBright, 3);
+      }
+    }
+    if (p.category === 'policy') {
+      // Cancel / LOS grant 5 seconds of invulnerability — hazards bounce off
+      invulnerableTimer = Math.max(invulnerableTimer, 0) + 5;
+      pushMessage(p.label + ' — invulnerable for 5 seconds', COLORS.mintBright, 3);
+    }
+    spawnPowerupFeedback(p);
     collected.add(p.key);
     spawnParticle(p.x, p.y, COLORS.peach, '+UNLOCKED', true);
     pushMessage(getCollectedFullLabel(p).toUpperCase(), COLORS.mintBright, 5);
@@ -626,7 +932,20 @@
     }, 350);
     checkGDSUnlock();
   }
-  function checkGDSUnlock() { if (REQUIRED_KEYS.every(k => collected.has(k)) && !gdsActive) triggerGDS(); }
+  function checkGDSUnlock() {
+    if (practiceMode) return;  // never auto-unlock GDS while practising
+    if (REQUIRED_KEYS.every(k => collected.has(k)) && !gdsActive) triggerGDS();
+  }
+
+  // After an association is caught, schedule another spawn so the player can swap their beam later
+  function scheduleAssociationRespawn() {
+    if (practiceMode) return;
+    setTimeout(() => {
+      if (!running || gdsActive) return;
+      const spec = POWERUP_LIST.find(p => p.key === 'association');
+      if (spec) spawnSlot(spec);
+    }, 22000);
+  }
 
   function triggerGDS() {
     gdsActive = true;
@@ -634,6 +953,7 @@
     waveInterval = 0.5;
     scoreMultiplier = 1.5;
     multiplierTimer = 18;
+    recentMessages = [];
     spawnParticle(W/2, PLAY_TOP + PLAY_H/2 - 40, COLORS.amadeusLight, 'AMADEUS GDS', true);
     setTimeout(() => spawnParticle(W/2, PLAY_TOP + PLAY_H/2, COLORS.white, 'UNLOCKED!', true), 350);
     setTimeout(() => spawnParticle(W/2, PLAY_TOP + PLAY_H/2 + 40, COLORS.amadeusLight, 'CORPORATE DEMAND SURGE', true), 700);
@@ -648,9 +968,21 @@
     }
   }
 
+  function getBeamType() {
+    if (!collected.has('association')) return 'normal';
+    if (assignedAssociation === 'arl') return 'wide';
+    if (assignedAssociation === 'staa') return 'triple';
+    if (assignedAssociation === 'asap') return 'cone';
+    return 'normal';
+  }
+  // Cone beam dimensions (used by both collision and drawing)
+  const CONE_TOP_HW = 65;     // half-width at top of screen
+  const CONE_BOTTOM_HW = 18;  // half-width at player
   function getBeamRects() {
-    const wide = collected.has('association') && assignedAssociation === 'arl';
-    const multi = collected.has('association') && assignedAssociation === 'staa';
+    const type = getBeamType();
+    if (type === 'cone') return [];  // cone handled separately (it's a trapezoid, not rectangles)
+    const wide = type === 'wide';
+    const multi = type === 'triple';
     const baseW = wide ? 80 : 50;
     const rects = [];
     if (multi) {
@@ -663,6 +995,14 @@
   }
   function pointInBeam(px, py) {
     if (beamBlockTimer > 0) return false;
+    if (getBeamType() === 'cone') {
+      const topY = PLAY_TOP;
+      const bottomY = player.y - player.h/2;
+      if (py < topY || py > bottomY) return false;
+      const t = (py - topY) / Math.max(1, bottomY - topY);
+      const halfWidth = CONE_TOP_HW - t * (CONE_TOP_HW - CONE_BOTTOM_HW);
+      return Math.abs(px - player.x) <= halfWidth;
+    }
     const rects = getBeamRects();
     for (const r of rects) if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return true;
     return false;
@@ -678,42 +1018,55 @@
     if (keys['arrowright'] || keys['d']) dx += 1;
     const usingKeys = dx !== 0;
     const slowFactor = slowTimer > 0 ? 0.55 : 1;
-    if (usingKeys) player.x += dx * player.baseSpeed * slowFactor * 60 * dt;
-    else if (mouseX !== null) {
-      const mdx = mouseX - player.x;
-      if (Math.abs(mdx) > 3) {
+    if (usingKeys) {
+      // Keyboard: gradual movement at baseSpeed (unchanged — feedback said keys feel right)
+      player.x += dx * player.baseSpeed * slowFactor * 60 * dt;
+    } else if (mouseX !== null) {
+      // Mouse / touch: snap directly to the cursor for instant response.
+      // When weather is slowing the ship we still cap per-frame travel so the slow effect is felt.
+      if (slowTimer > 0) {
+        const mdx = mouseX - player.x;
         const sign = Math.sign(mdx);
-        const mv = Math.min(Math.abs(mdx), player.baseSpeed * slowFactor * 60 * dt);
-        player.x += sign * mv;
+        const cap = player.baseSpeed * slowFactor * 60 * dt * 4;
+        player.x += sign * Math.min(Math.abs(mdx), cap);
+      } else {
+        player.x = mouseX;
       }
     }
     player.x = Math.max(player.w/2 + 10, Math.min(W - player.w/2 - 10, player.x));
 
-    waveTimer += dt;
-    if (waveTimer >= waveInterval) { waveTimer = 0; spawnWave(); }
+    if (!practiceMode) {
+      waveTimer += dt;
+      if (waveTimer >= waveInterval) { waveTimer = 0; spawnWave(); }
+    }
 
-    const elapsed = totalTime - timeLeft;
-    for (let i = 0; i < POWERUP_LIST.length; i++) {
-      if (!powerupSchedule[i] && elapsed >= POWERUP_LIST[i].time) {
-        powerupSchedule[i] = true;
-        spawnSlot(POWERUP_LIST[i]);
+    if (!practiceMode) {
+      const elapsed = totalTime - timeLeft;
+      for (let i = 0; i < POWERUP_LIST.length; i++) {
+        if (!powerupSchedule[i] && elapsed >= POWERUP_LIST[i].time) {
+          powerupSchedule[i] = true;
+          spawnSlot(POWERUP_LIST[i]);
+        }
       }
     }
 
     reminderTimer += dt;
-    if (reminderTimer >= 18 && !gdsActive && collected.size < TOTAL_REQUIRED && timeLeft > 15) {
+    if (!practiceMode && reminderTimer >= 18 && !gdsActive && collected.size < TOTAL_REQUIRED && timeLeft > 15) {
       reminderTimer = 0;
       const remaining = TOTAL_REQUIRED - collected.size;
       pushMessage('Need ' + remaining + ' more power-up' + (remaining > 1 ? 's' : '') + ' for Amadeus GDS!', COLORS.peach, 4);
     }
 
     items = items.filter(it => {
+      if (it._dissolved) return false;  // rate codes flagged these for removal this frame
       it.y += it.vy * dt;
       if (it.vx) it.x += it.vx * dt;
       if (it.sway !== undefined) { it.sway += dt * 1.6; it.x += Math.sin(it.sway) * 8 * dt; }
       if (it.type === 'event') it.rotation += dt * 1.6;
       const inBeam = pointInBeam(it.x, it.y);
-      if (it.type === 'guest' || it.type === 'event' || it.type === 'powerup') {
+      // All falling items behave the same in the beam: pulled toward the player x, vy boosted for snap.
+      // Events use the proximity-only trigger (the earlier "disappear halfway" was the premature trigger, not the boost).
+      if (it.type === 'guest' || it.type === 'powerup' || it.type === 'event' || it.type === 'obstacle') {
         if (inBeam) {
           const dxp = player.x - it.x;
           it.x += dxp * Math.min(1, dt * 4);
@@ -721,7 +1074,9 @@
         }
       }
       if (it.y > PLAY_BOTTOM + 30) {
-        if (it.type === 'powerup') {
+        if (practiceMode) {
+          practiceItemRemoved(it, 'offscreen');
+        } else if (it.type === 'powerup') {
           const slotKey = it.key;
           if (!collected.has(slotKey)) {
             const lbl = (it.label || '').toUpperCase();
@@ -746,25 +1101,60 @@
       if (it.type === 'guest') {
         const d = Math.hypot(it.x - player.x, it.y - player.y);
         if (d < 32) {
-          let baseValue = it.tier === 'corporate' ? 5 : 1;
-          if (it.tier === 'leisure' && collected.has('bar')) baseValue += 1;
-          if (it.tier === 'corporate' && collected.has('cor')) baseValue += 5;
-          const val = Math.round(baseValue * scoreMultiplier);
-          score += val;
-          const c = it.tier === 'corporate' ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : COLORS.leisureBlue;
-          spawnParticle(it.x, it.y - 6, c, '+' + val);
+          if (practiceMode) {
+            // Award real score in practice too so the player sees it tick up + arrow points to score HUD
+            let baseValue = it.tier === 'corporate' ? 5 : 1;
+            if (it.tier === 'leisure' && collected.has('bar')) baseValue += 1;
+            if (it.tier === 'corporate' && collected.has('cor')) baseValue += 5;
+            const val = Math.round(baseValue * scoreMultiplier);
+            score += val;
+            spawnParticle(it.x, it.y - 6, COLORS.mintBright, '+' + val);
+            spawnTutorialFeedback(() => ({ x: player.x, y: player.y - 20 }), scoreTarget, '+' + val + ' SCORE', COLORS.mintBright, 1.5);
+            practiceItemRemoved(it, 'collided');
+          } else {
+            let baseValue = it.tier === 'corporate' ? 5 : 1;
+            if (it.tier === 'leisure' && collected.has('bar')) baseValue += 1;
+            if (it.tier === 'corporate' && collected.has('cor')) baseValue += 5;
+            const val = Math.round(baseValue * scoreMultiplier);
+            score += val;
+            const c = it.tier === 'corporate' ? (gdsActive ? COLORS.amadeusLight : COLORS.peach) : COLORS.leisureBlue;
+            spawnParticle(it.x, it.y - 6, c, '+' + val);
+          }
           return false;
         }
       } else if (it.type === 'powerup') {
         const d = Math.hypot(it.x - player.x, it.y - player.y);
-        if (d < 32) { collectPowerup(it); return false; }
+        if (d < 32) {
+          if (practiceMode) {
+            // Run collectPowerup too so the HUD reacts (shield rings, slot lights up, beam upgrades)
+            collectPowerup(it);
+            practiceItemRemoved(it, 'collided');
+          } else {
+            collectPowerup(it);
+          }
+          return false;
+        }
       } else if (it.type === 'event') {
         const d = Math.hypot(it.x - player.x, it.y - player.y);
-        if (d < 30) { applyEvent(it); return false; }
-        if (inBeam && it.y > PLAY_TOP + PLAY_H * 0.3) { applyEvent(it); return false; }
+        // Events only trigger when they reach the player — beam pulls them in like guests.
+        if (d < 32) {
+          if (practiceMode) {
+            spawnParticle(it.x, it.y, COLORS.mintBright, '+ CAUGHT');
+            practiceItemRemoved(it, 'collided');
+          } else {
+            applyEvent(it);
+          }
+          return false;
+        }
       } else if (it.type === 'obstacle') {
         if (it.x + it.w/2 > playerLeft && it.x - it.w/2 < playerRight && it.y + it.h/2 > playerTop && it.y - it.h/2 < playerBottom) {
-          applyObstacleEffect(it); return false;
+          if (practiceMode) {
+            applyObstacleEffect(it);     // real effects so player sees shield burn / lives drop
+            practiceItemRemoved(it, 'collided');
+          } else {
+            applyObstacleEffect(it);
+          }
+          return false;
         }
       }
       return true;
@@ -774,6 +1164,8 @@
     if (slowTimer > 0) slowTimer -= dt;
     if (beamBlockTimer > 0) beamBlockTimer -= dt;
     if (damageFlash > 0) damageFlash -= dt;
+    if (invulnerableTimer > 0) invulnerableTimer -= dt;
+    powerupFeedbacks = powerupFeedbacks.filter(f => { f.life -= dt; return f.life > 0; });
     if (gdsActive) {
       gdsTimer -= dt;
       if (gdsTimer <= 0) { gdsActive = false; waveInterval = 2.4; }
@@ -781,8 +1173,10 @@
     particles = particles.filter(p => { p.y += p.vy; p.life -= dt * 1.2; return p.life > 0; });
     recentMessages = recentMessages.filter(m => { m.life -= dt; return m.life > 0; });
     stars.forEach(s => { s.y += s.vy * dt; if (s.y > H + 4) { s.y = -4; s.x = Math.random() * W; } });
-    timeLeft -= dt;
-    if (timeLeft <= 0) endGame(false);
+    if (!practiceMode) {
+      timeLeft -= dt;
+      if (timeLeft <= 0) endGame(false);
+    }
   }
 
   // ---------- Drawing ----------
@@ -833,16 +1227,34 @@
     drawSprite(map, g.x, g.y, 2, palette, bobY);
   }
   function drawObstacle(o) {
-    ctx.fillStyle = COLORS.navyDeep;
-    ctx.fillRect(o.x - o.w/2 - 2, o.y - o.h/2 - 2, o.w + 4, o.h + 4);
-    ctx.fillStyle = COLORS.navy;
-    ctx.fillRect(o.x - o.w/2, o.y - o.h/2, o.w, o.h);
-    const borderColor = o.subtype.group === 'barrier' ? COLORS.burntOrange : COLORS.mint;
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(o.x - o.w/2 + 0.5, o.y - o.h/2 + 0.5, o.w - 1, o.h - 1);
-    drawText(o.subtype.icon, o.x, o.y - 6, 11, o.subtype.group === 'barrier' ? COLORS.peach : COLORS.mintBright, 'center');
-    drawText(o.subtype.label, o.x, o.y + 6, 6, o.subtype.group === 'barrier' ? COLORS.mint : COLORS.mintBright, 'center');
+    const x = o.x, y = o.y;
+    const w = o.w + 12;  // visual triangle slightly larger than hitbox
+    const h = o.h + 10;
+    const isBarrier = o.subtype.group === 'barrier';
+    const fillColor   = isBarrier ? COLORS.burntOrange : COLORS.peach;
+    const accentColor = isBarrier ? '#8B321F' : COLORS.burntOrange;
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(x + 2, y - h/2 + 2);
+    ctx.lineTo(x - w/2 + 2, y + h/2 + 2);
+    ctx.lineTo(x + w/2 + 2, y + h/2 + 2);
+    ctx.closePath();
+    ctx.fill();
+    // Triangle body
+    ctx.fillStyle = fillColor;
+    ctx.beginPath();
+    ctx.moveTo(x, y - h/2);
+    ctx.lineTo(x - w/2, y + h/2);
+    ctx.lineTo(x + w/2, y + h/2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Inner white "!" panel + icon
+    drawText(o.subtype.icon, x, y - 2, 10, COLORS.white, 'center');
+    drawText(o.subtype.label, x, y + 9, 6, COLORS.white, 'center');
   }
   function drawEvent(ev) {
     ctx.save();
@@ -872,29 +1284,116 @@
     drawText(ev.label, ev.x, ev.y + ev.size + 4, 7, COLORS.mintBright, 'center');
   }
   function drawPowerup(p) {
-    p.pulse += 0.08;
-    const halo = 30 + Math.sin(p.pulse) * 4;
+    p.pulse += 0.07;
+    const pulseScale = 1 + Math.sin(p.pulse) * 0.06;
+    const halo = 38 + Math.sin(p.pulse) * 4;
+    // Mint halo for the TrustedStays brand
     const grad = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, halo);
-    grad.addColorStop(0, 'rgba(230,135,96,0.55)');
-    grad.addColorStop(1, 'rgba(230,135,96,0)');
+    grad.addColorStop(0, 'rgba(180,220,185,0.6)');
+    grad.addColorStop(1, 'rgba(180,220,185,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(p.x - halo, p.y - halo, halo*2, halo*2);
-    ctx.fillStyle = COLORS.burntOrange;
-    ctx.fillRect(p.x - 22, p.y - 16, 44, 32);
-    ctx.fillStyle = COLORS.peach;
-    ctx.fillRect(p.x - 22, p.y - 16, 44, 4);
-    ctx.fillRect(p.x - 22, p.y + 12, 44, 4);
-    ctx.strokeStyle = COLORS.white; ctx.lineWidth = 1;
-    ctx.strokeRect(p.x - 21.5, p.y - 15.5, 43, 31);
-    drawText(p.displayShort || p.short, p.x, p.y - 5, 11, COLORS.white, 'center');
+    // Static 4-point starburst accents around the badge (no rotation — simpler)
+    ctx.fillStyle = COLORS.mintBright;
+    const sLen = 14 * pulseScale, sNarrow = 5;
+    // North
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 22 - sLen);
+    ctx.lineTo(p.x - sNarrow, p.y - 22);
+    ctx.lineTo(p.x + sNarrow, p.y - 22);
+    ctx.closePath(); ctx.fill();
+    // South
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y + 22 + sLen);
+    ctx.lineTo(p.x - sNarrow, p.y + 22);
+    ctx.lineTo(p.x + sNarrow, p.y + 22);
+    ctx.closePath(); ctx.fill();
+    // East
+    ctx.beginPath();
+    ctx.moveTo(p.x + 28 + sLen, p.y);
+    ctx.lineTo(p.x + 28, p.y - sNarrow);
+    ctx.lineTo(p.x + 28, p.y + sNarrow);
+    ctx.closePath(); ctx.fill();
+    // West
+    ctx.beginPath();
+    ctx.moveTo(p.x - 28 - sLen, p.y);
+    ctx.lineTo(p.x - 28, p.y - sNarrow);
+    ctx.lineTo(p.x - 28, p.y + sNarrow);
+    ctx.closePath(); ctx.fill();
+    // Main rounded badge — mint background for the brand feel
+    const w = 56, h = 38;
+    const r = 6;
+    const bx = p.x - w/2, by = p.y - h/2;
+    ctx.fillStyle = COLORS.mintBright;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.arcTo(bx + w, by, bx + w, by + h, r);
+    ctx.arcTo(bx + w, by + h, bx, by + h, r);
+    ctx.arcTo(bx, by + h, bx, by, r);
+    ctx.arcTo(bx, by, bx + w, by, r);
+    ctx.closePath();
+    ctx.fill();
+    // Darker accent strip at the top — quietly arcade-like
+    ctx.fillStyle = COLORS.mint;
+    ctx.fillRect(bx, by, w, 5);
+    ctx.fillRect(bx, by + h - 5, w, 5);
+    // Border
+    ctx.strokeStyle = COLORS.navyDeep;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx + r, by);
+    ctx.arcTo(bx + w, by, bx + w, by + h, r);
+    ctx.arcTo(bx + w, by + h, bx, by + h, r);
+    ctx.arcTo(bx, by + h, bx, by, r);
+    ctx.arcTo(bx, by, bx + w, by, r);
+    ctx.closePath();
+    ctx.stroke();
+    // Bold short label centred in the badge — much larger, easier to read
+    drawText(p.displayShort || p.short, p.x, p.y - 8, 13, COLORS.navyDeep, 'center');
+    // Category label below
     const cat = p.category === 'accred-multi' ? 'ACCRED' :
                 p.category === 'association-multi' ? 'ASSOC' :
                 p.category === 'pms-multi' ? 'PMS' :
                 p.category === 'rate' ? 'RAC' :
                 p.category === 'policy' ? 'POLICY' : '';
-    drawText(cat, p.x, p.y + 6, 6, COLORS.peach, 'center');
+    drawText(cat, p.x, p.y + 7, 7, COLORS.navyDeep, 'center');
   }
   function drawBeam() {
+    // Cone beam: draw a trapezoid instead of rectangles
+    if (getBeamType() === 'cone') {
+      const blocked = beamBlockTimer > 0;
+      const flicker = 0.85 + Math.sin(beamPhase * 18) * 0.1;
+      const topY = PLAY_TOP;
+      const bottomY = player.y - player.h/2;
+      // Trapezoid path
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(player.x - CONE_TOP_HW, topY);
+      ctx.lineTo(player.x + CONE_TOP_HW, topY);
+      ctx.lineTo(player.x + CONE_BOTTOM_HW, bottomY);
+      ctx.lineTo(player.x - CONE_BOTTOM_HW, bottomY);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
+      const baseRGBA = blocked ? '195,80,55' : (gdsActive ? '91,194,231' : '149,200,157');
+      grad.addColorStop(0, `rgba(${baseRGBA},0)`);
+      grad.addColorStop(0.6, `rgba(${baseRGBA},${0.18 * flicker})`);
+      grad.addColorStop(1, `rgba(${baseRGBA},${0.55 * flicker})`);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      // Edge lines
+      ctx.strokeStyle = blocked ? COLORS.burntOrange : (gdsActive ? COLORS.amadeusLight : COLORS.mintBright);
+      ctx.globalAlpha = 0.8;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(player.x - CONE_TOP_HW, topY);
+      ctx.lineTo(player.x - CONE_BOTTOM_HW, bottomY);
+      ctx.moveTo(player.x + CONE_TOP_HW, topY);
+      ctx.lineTo(player.x + CONE_BOTTOM_HW, bottomY);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
     const rects = getBeamRects();
     rects.forEach(r => {
       const blocked = beamBlockTimer > 0;
@@ -916,21 +1415,198 @@
       ctx.globalAlpha = 1;
     });
   }
+  // Resolve a feedback endpoint — either a {x,y} object or a function that returns one each frame
+  function resolveCoord(s) { return typeof s === 'function' ? s() : s; }
+
+  // Approximate positions of the top-HUD readouts so feedback arrows can point at them
+  function scoreTarget() { return { x: 60, y: 38 }; }
+  function livesTarget() { return { x: W - 60, y: 36 }; }
+
+  // General-purpose tutorial feedback arrow (used for score / lives / shield)
+  function spawnTutorialFeedback(source, target, label, color, life) {
+    if (!practiceMode) return;
+    powerupFeedbacks.push({
+      source, target, label,
+      color: color || COLORS.amadeusLight,
+      life: life || 1.5, maxLife: life || 1.5
+    });
+  }
+
+  // Power-up specific feedback — arrows from the bottom-HUD slot to whatever just changed.
+  // Targets are stored as FUNCTIONS so they follow the player every frame.
+  function spawnPowerupFeedback(p) {
+    if (!practiceMode) return;
+    const slotIndex = POWERUP_LIST.findIndex(s => s.key === p.key);
+    if (slotIndex === -1) return;
+    const slotW = 64, gap = 8, startX = 14;
+    const slotY = PLAY_BOTTOM + 26;
+    const source = { x: startX + slotIndex * (slotW + gap) + slotW/2, y: slotY + 25 };
+
+    let target = null, label = '';
+    if (p.key === 'accred') {
+      target = () => ({ x: player.x, y: player.y - 28 });
+      label = '+SHIELD';
+    } else if (p.key === 'association') {
+      target = () => ({ x: player.x, y: PLAY_TOP + 80 });
+      label = 'BEAM UPGRADED';
+    } else if (p.key === 'bar') {
+      target = { x: W/2, y: PLAY_TOP + 80 };
+      label = 'HAZARDS CLEARED · +1 LEISURE';
+    } else if (p.key === 'cor') {
+      target = { x: W/2, y: PLAY_TOP + 80 };
+      label = 'HAZARDS CLEARED · +5 CORPORATE';
+    } else if (p.key === 'cancel' || p.key === 'los') {
+      target = () => ({ x: player.x, y: player.y });
+      label = '+5s INVULNERABLE';
+    } else if (p.key === 'pms') {
+      target = () => ({ x: player.x, y: player.y });
+      label = 'PMS CONNECTED';
+    }
+    if (!target) return;
+    powerupFeedbacks.push({ source, target, label, color: COLORS.amadeusLight, life: 1.8, maxLife: 1.8 });
+  }
+
+  function drawPowerupFeedbacks() {
+    powerupFeedbacks.forEach(f => {
+      const src = resolveCoord(f.source);
+      const tgt = resolveCoord(f.target);
+      const t = 1 - (f.life / f.maxLife);
+      const alpha = f.life > 0.4 ? 1 : f.life / 0.4;
+      const col = f.color || COLORS.amadeusLight;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 5]);
+      ctx.lineDashOffset = -t * 24;
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+      const angle = Math.atan2(tgt.y - src.y, tgt.x - src.x);
+      const head = 12;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(tgt.x, tgt.y);
+      ctx.lineTo(tgt.x - Math.cos(angle - 0.45) * head, tgt.y - Math.sin(angle - 0.45) * head);
+      ctx.lineTo(tgt.x - Math.cos(angle + 0.45) * head, tgt.y - Math.sin(angle + 0.45) * head);
+      ctx.closePath();
+      ctx.fill();
+      drawText(f.label, tgt.x, tgt.y - 24, 9, col, 'center');
+      ctx.restore();
+    });
+  }
+
+  // Arrow + label that hovers next to the current practice item to tell the player what to do
+  function drawPracticeArrow() {
+    if (!practiceMode || practiceTransitioning || !PRACTICE_STAGES) return;
+    const stage = PRACTICE_STAGES[practiceStage];
+    if (!stage) return;
+    const item = items.find(it => it._practiceTag === practiceStage);
+    if (!item) return;
+
+    const isDodge = stage.type === 'dodge';
+    const verb = isDodge ? 'AVOID!' : 'CATCH!';
+    const bgColor = isDodge ? COLORS.burntOrange : COLORS.amadeusBlue;
+
+    // Pick side based on item position so the arrow doesn't fly off screen
+    const onLeft = item.x > W * 0.55;
+    const arrowY = Math.max(PLAY_TOP + 40, Math.min(PLAY_BOTTOM - 60, item.y));
+
+    // Bobbing animation to draw the eye
+    const bob = Math.sin(beamPhase * 6) * 5;
+
+    // Box dimensions
+    const textSize = 14;
+    ctx.font = textSize + 'px "Press Start 2P", monospace';
+    const textW = ctx.measureText(verb).width;
+    const boxW = textW + 16;
+    const boxH = 28;
+    const gap = 12;       // gap between arrow tip and item
+    const arrowLen = 12;  // length of arrow triangle
+
+    let tipX, baseX, boxX;
+    if (onLeft) {
+      tipX  = item.x - gap;
+      baseX = tipX - arrowLen;
+      boxX  = baseX - boxW;
+    } else {
+      tipX  = item.x + gap;
+      baseX = tipX + arrowLen;
+      boxX  = baseX;
+    }
+    const boxY = arrowY - boxH/2 + bob;
+
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(boxX + 3, boxY + 3, boxW, boxH);
+
+    // Label box
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeStyle = COLORS.white;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+    // Arrow triangle from box edge to item
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    ctx.moveTo(baseX, arrowY - 8 + bob);
+    ctx.lineTo(baseX, arrowY + 8 + bob);
+    ctx.lineTo(tipX,  arrowY + bob);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Label text centered in box
+    ctx.font = textSize + 'px "Press Start 2P", monospace';
+    ctx.fillStyle = COLORS.white;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(verb, boxX + boxW/2, boxY + boxH/2);
+  }
+
   function drawPlayer() {
+    const wasAlpha = ctx.globalAlpha;
     if (gdsActive) {
       ctx.strokeStyle = `rgba(91,194,231,${0.7 + Math.sin(beamPhase * 4) * 0.2})`;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(player.x, player.y, player.w/2 + 12, 0, Math.PI*2);
       ctx.stroke();
-    } else if (collected.has('accred')) {
-      ctx.strokeStyle = 'rgba(149,200,157,0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.w/2 + 10, 0, Math.PI*2);
-      ctx.stroke();
+    } else if (shieldCharges > 0) {
+      // Concentric shield rings — bright, thick, slight pulse so they're impossible to miss
+      const pulse = 0.85 + Math.sin(beamPhase * 5) * 0.15;
+      for (let i = 0; i < shieldCharges; i++) {
+        // Bright mint outline
+        ctx.strokeStyle = `rgba(180,220,185,${(0.95 - i * 0.12) * pulse})`;
+        ctx.lineWidth = 3.5;
+        ctx.setLineDash(i === 0 ? [] : [6, 4]);
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.w/2 + 12 + i * 7, 0, Math.PI*2);
+        ctx.stroke();
+        // Inner darker accent line for depth
+        ctx.strokeStyle = `rgba(52,65,103,${0.45 * pulse})`;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.w/2 + 12 + i * 7 - 2, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    // Pulsing transparency while invulnerable
+    if (invulnerableTimer > 0) {
+      ctx.globalAlpha = 0.45 + Math.sin(beamPhase * 8) * 0.25;
     }
     drawHouseSprite(player.x, player.y, 4);
+    ctx.globalAlpha = wasAlpha;
+    // INVULN timer badge above the player
+    if (invulnerableTimer > 0) {
+      drawText('INVULN ' + Math.ceil(invulnerableTimer) + 's', player.x, player.y - player.h/2 - 14, 9, COLORS.mintBright, 'center');
+    }
   }
   function drawTopHUD() {
     ctx.fillStyle = COLORS.navyDeep; ctx.fillRect(0, 0, W, HUD_TOP_H);
@@ -1038,7 +1714,7 @@
       ctx.globalAlpha = 1;
     });
     if (scoreMultiplier > 1 && !gdsActive) drawText('PEAK SEASON x' + scoreMultiplier, W/2, HUD_TOP_H + 8, 10, COLORS.mintBright, 'center');
-    if (gdsActive && scoreMultiplier > 1) drawText('AMADEUS GDS x' + scoreMultiplier, W/2, HUD_TOP_H + 30, 10, COLORS.amadeusLight, 'center');
+    if (gdsActive && scoreMultiplier > 1) drawText('x' + scoreMultiplier + ' SCORE BOOST', W - 14, HUD_TOP_H + 32, 8, COLORS.amadeusLight, 'right');
   }
   function drawBackground() {
     ctx.fillStyle = COLORS.navyDeep;
@@ -1075,6 +1751,8 @@
       else if (it.type === 'powerup') drawPowerup(it);
     });
     drawPlayer();
+    drawPowerupFeedbacks();
+    drawPracticeArrow();
     drawParticles();
     drawTopHUD();
     drawGDSBanner();
@@ -1236,7 +1914,7 @@
   }
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
   function hideAllOverlays() {
-    ['overlay-tutorial','overlay-start','overlay-end','overlay-leaderboard'].forEach(id => {
+    ['overlay-tutorial','overlay-start','overlay-end','overlay-leaderboard','overlay-practice-done'].forEach(id => {
       document.getElementById(id).style.display = 'none';
     });
   }
@@ -1344,7 +2022,10 @@
     document.querySelectorAll('.tut-slide').forEach((el, i) => el.classList.toggle('active', i === tutSlide));
     document.querySelectorAll('#tut-progress .tut-dot').forEach((el, i) => el.classList.toggle('active', i === tutSlide));
     document.getElementById('tut-back').disabled = tutSlide === 0;
-    document.getElementById('tut-next').textContent = tutSlide === TUT_SLIDES - 1 ? 'PRESS START' : 'NEXT';
+    document.getElementById('tut-next').textContent = tutSlide === TUT_SLIDES - 1 ? 'PLAY' : 'NEXT';
+    document.getElementById('tut-practice').style.display = tutSlide === TUT_SLIDES - 1 ? '' : 'none';
+    // On the last slide, PLAY replaces SKIP & PLAY — hide skip to avoid redundancy
+    document.getElementById('tut-skip').style.display = tutSlide === TUT_SLIDES - 1 ? 'none' : '';
     drawTutorialVisuals();
     setTimeout(() => { const nextBtn = document.getElementById('tut-next'); if (nextBtn) nextBtn.focus(); }, 60);
   }
@@ -1355,6 +2036,16 @@
     hideAllOverlays();
     showSlide(0);
     document.getElementById('overlay-tutorial').style.display = 'flex';
+  };
+
+  // Called when the user clicks the TUTORIAL link mid-game — stops the round cleanly first
+  window.pauseGameAndShowTutorial = function() {
+    running = false;
+    practiceMode = false;
+    practiceTransitioning = false;
+    document.getElementById('practice-note').style.display = 'none';
+    items = []; particles = []; recentMessages = [];
+    showTutorial();
   };
   function drawTutorialVisuals() {
     const v1 = document.getElementById('tut-visual-1');
@@ -1382,9 +2073,8 @@
     const v2 = document.getElementById('tut-visual-2');
     v2.innerHTML = `
       <svg viewBox="0 0 360 130" width="100%" height="100%" style="image-rendering:pixelated">
-        <text x="55" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#B4DCB9">LEISURE GUEST</text>
-        <text x="200" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#E68760">CORPORATE GUEST</text>
-        <text x="320" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#B4DCB9">BONUS</text>
+        <text x="90" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#B4DCB9">LEISURE GUEST</text>
+        <text x="270" y="16" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#E68760">CORPORATE GUEST</text>
         <g transform="translate(35, 65) scale(2)">
           <rect x="-5" y="-12" width="10" height="6" fill="#5A4530"/>
           <rect x="-4" y="-7" width="8" height="5" fill="#F4D58A"/>
@@ -1417,13 +2107,8 @@
           <rect x="1" y="7" width="2" height="5" fill="#344167"/>
           <rect x="8" y="1" width="5" height="5" fill="#C35037"/>
         </g>
-        <g transform="translate(320, 65)">
-          <polygon points="0,-22 4,-7 22,0 4,7 0,22 -4,7 -22,0 -4,-7" fill="#B4DCB9" stroke="#95C89D" stroke-width="1.5"/>
-          <text x="0" y="3" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="#1F2742">EVT</text>
-        </g>
-        <text x="55" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="white">1 PT</text>
-        <text x="200" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="white">5 PTS</text>
-        <text x="320" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="7" fill="#B4DCB9">2x BOOST</text>
+        <text x="90" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="white">1 PT</text>
+        <text x="270" y="115" text-anchor="middle" font-family="Press Start 2P, monospace" font-size="8" fill="white">5 PTS</text>
       </svg>`;
     const v3 = document.getElementById('tut-visual-3');
     v3.innerHTML = `
@@ -1452,6 +2137,9 @@
     multiplierTimer = 0; scoreMultiplier = 1;
     slowTimer = 0; beamBlockTimer = 0; damageFlash = 0;
     gdsActive = false; pmsAssigned = null; assignedAccreditation = null; assignedAssociation = null;
+    shieldCharges = 0;
+    invulnerableTimer = 0;
+    powerupFeedbacks = [];
     powerupSchedule = new Array(POWERUP_LIST.length).fill(false);
     reminderTimer = 0;
     player.x = W/2;
