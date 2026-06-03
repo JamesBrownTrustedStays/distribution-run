@@ -365,6 +365,7 @@
   let score = 0;
   let totalTime = 90, timeLeft = totalTime;
   let lives = 3;
+  let playerHitFlash = 0;          // full-house red flash on hazard hit (any type)
   let running = false;
   let collected = new Set();
   let lastTimestamp = 0;
@@ -647,7 +648,7 @@
 
   window.startPractice = function() {
     hideAllOverlays();
-    score = 0; lives = 3; collected.clear(); items = []; particles = []; recentMessages = [];
+    score = 0; lives = 3; collected.clear(); items = []; particles = []; recentMessages = []; playerHitFlash = 0;
     waveTimer = 0; multiplierTimer = 0; scoreMultiplier = 1;
     slowTimer = 0; beamBlockTimer = 0; damageFlash = 0;
     gdsActive = false; pmsAssigned = null; assignedAccreditation = null; assignedAssociation = null;
@@ -726,7 +727,8 @@
     const cols = 4 + Math.floor(Math.random() * 2);
     const margin = 70;
     const slotW = (W - margin * 2) / (cols - 1);
-    const obstacleProb = gdsActive ? 0.05 : Math.min(0.45, 0.22 + (totalTime - timeLeft) / 260);
+    // Steeper hazard ramp: 22% at start, climbing to 55% late game
+    const obstacleProb = gdsActive ? 0.05 : Math.min(0.55, 0.22 + (totalTime - timeLeft) / 200);
     // Bonus events removed — only guests and hazards now
     for (let i = 0; i < cols; i++) {
       if (Math.random() < 0.18) continue;
@@ -765,66 +767,66 @@
       pushMessage(e.label + ' bounced off (policy active)', COLORS.mintBright, 2);
       return;
     }
-    damageFlash = 0.5;
-    if (e.effect === 'damage') {
+    damageFlash = 0.6;
+    playerHitFlash = 0.35;  // full-house red flash on every hazard so the hit is unmistakable
+
+    // EVERY hazard burns a shield OR costs a life — regardless of secondary effect
+    let gameOver = false;
+    if (shieldCharges > 0) {
+      shieldCharges -= 1;
+      const accLabel = assignedAccreditation
+        ? ACCRED_OPTIONS.find(a => a.id === assignedAccreditation).label
+        : 'Accreditation';
+      spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD ' + shieldCharges + '/' + MAX_SHIELD_CHARGES);
+      if (practiceMode) {
+        spawnTutorialFeedback(() => ({ x: player.x, y: player.y - 30 }), () => ({ x: player.x, y: player.y }), 'SHIELD ABSORBED', COLORS.mint, 1.5);
+      }
       if (shieldCharges > 0) {
-        // Burn one shield charge. Slot stays filled until charges hit zero.
-        shieldCharges -= 1;
-        const accLabel = assignedAccreditation
-          ? ACCRED_OPTIONS.find(a => a.id === assignedAccreditation).label
-          : 'Accreditation';
-        spawnParticle(player.x, player.y - 30, COLORS.mint, 'SHIELD ' + shieldCharges + '/' + MAX_SHIELD_CHARGES);
-        if (practiceMode) {
-          spawnTutorialFeedback(() => ({ x: player.x, y: player.y - 30 }), () => ({ x: player.x, y: player.y }), 'SHIELD ABSORBED', COLORS.mint, 1.5);
-        }
-        if (shieldCharges > 0) {
-          pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase() + ' · ' + shieldCharges + ' charges left', COLORS.mint, 4);
-          maybeTagline(e);
-          return;
-        }
+        pushMessage(accLabel + ' shield absorbed ' + e.label.toLowerCase() + ' · ' + shieldCharges + ' charges left', COLORS.mint, 4);
+      } else {
         // Last shield used — empty the slot and respawn accreditation for a recovery chance
         collected.delete('accred');
         assignedAccreditation = null;
         pushMessage('All shields used by ' + e.label.toLowerCase() + ' — accreditation respawning!', COLORS.peach, 5);
-        maybeTagline(e);
         setTimeout(() => {
           if (!running || gdsActive || collected.has('accred')) return;
           const accSpec = POWERUP_LIST.find(p => p.key === 'accred');
           spawnSlot(accSpec, { silent: true });
           pushMessage('LAST CHANCE: catch any accreditation to restore your shield!', COLORS.peach, 5);
         }, 4000);
-        return;
       }
+    } else {
       lives = Math.max(0, lives - 1);
       spawnParticle(player.x, player.y - 30, COLORS.burntOrange, '-1 LIFE');
       pushMessage(e.label + ' cost you a life', COLORS.peach, 3);
       if (practiceMode) {
         spawnTutorialFeedback(() => ({ x: player.x, y: player.y - 20 }), livesTarget, '-1 LIFE', COLORS.peach, 1.8);
       }
-      maybeTagline(e);
       if (lives <= 0) {
         if (practiceMode) {
           // Don't end the game during practice — refill lives so the round keeps demonstrating
           lives = 3;
           pushMessage('Practice mode — lives refilled. Keep going!', COLORS.mintBright, 3);
         } else {
-          endGame(true);
+          gameOver = true;
         }
       }
-    } else if (e.effect === 'penalty') {
+    }
+
+    // Secondary effect always applies on top — shielded or not, the hazard's secondary kick still lands
+    if (e.effect === 'penalty') {
       score = Math.max(0, score - e.amount);
-      spawnParticle(player.x, player.y - 30, COLORS.burntOrange, '-' + e.amount);
-      pushMessage(e.label + ' -' + e.amount + ' pts', COLORS.peach, 3);
-      maybeTagline(e);
+      spawnParticle(player.x + 20, player.y - 30, COLORS.burntOrange, '-' + e.amount);
     } else if (e.effect === 'slow') {
       slowTimer = e.duration;
-      pushMessage(e.label + ' slowing your ship', COLORS.navyLight, 3);
-      maybeTagline(e);
+      pushMessage(e.label + ' also slowed your ship', COLORS.navyLight, 2.5);
     } else if (e.effect === 'blockBeam') {
       beamBlockTimer = e.duration;
-      pushMessage(e.label + ' blocking beam', COLORS.peach, 3);
-      maybeTagline(e);
+      pushMessage(e.label + ' also blocked your beam', COLORS.peach, 2.5);
     }
+
+    maybeTagline(e);
+    if (gameOver) endGame(true);
   }
 
   function applyEvent(ev) {
@@ -1164,6 +1166,7 @@
     if (slowTimer > 0) slowTimer -= dt;
     if (beamBlockTimer > 0) beamBlockTimer -= dt;
     if (damageFlash > 0) damageFlash -= dt;
+    if (playerHitFlash > 0) playerHitFlash -= dt;
     if (invulnerableTimer > 0) invulnerableTimer -= dt;
     powerupFeedbacks = powerupFeedbacks.filter(f => { f.life -= dt; return f.life > 0; });
     if (gdsActive) {
@@ -1602,6 +1605,15 @@
       ctx.globalAlpha = 0.45 + Math.sin(beamPhase * 8) * 0.25;
     }
     drawHouseSprite(player.x, player.y, 4);
+    // Red flash overlay — tints house pixels burnt-orange when hit by any hazard
+    if (playerHitFlash > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      const t = Math.min(0.85, playerHitFlash * 2.6);
+      ctx.fillStyle = `rgba(220, 80, 60, ${t})`;
+      ctx.fillRect(player.x - 24, player.y - 26, 48, 52);
+      ctx.restore();
+    }
     ctx.globalAlpha = wasAlpha;
     // INVULN timer badge above the player
     if (invulnerableTimer > 0) {
@@ -2131,7 +2143,7 @@
   // ---------- Lifecycle ----------
   window.startGame = function() {
     hideAllOverlays();
-    score = 0; timeLeft = totalTime; lives = 3;
+    score = 0; timeLeft = totalTime; lives = 3; playerHitFlash = 0;
     collected.clear(); items = []; particles = []; recentMessages = [];
     waveTimer = 0; waveInterval = 2.4;
     multiplierTimer = 0; scoreMultiplier = 1;
