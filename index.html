@@ -163,9 +163,170 @@
   .practice-note .practice-skip:hover { background: #2d3760; }
 
   @media (max-width: 740px) { .cabinet { width: 100%; padding: 8px; } }
+
+  /* ===== Feedback CTA + Modal ===== */
+  .feedback-cta {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .feedback-cta__bubble {
+    background: var(--peach);
+    color: white;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    padding: 9px 13px;
+    border-radius: 6px;
+    border: 2px solid var(--burnt-orange);
+    box-shadow: 0 3px 0 var(--burnt-orange), 0 6px 14px rgba(195,80,55,0.25);
+    letter-spacing: 0.4px;
+    line-height: 1.7;
+    position: relative;
+    animation: feedbackBob 2.4s ease-in-out infinite;
+    text-align: left;
+  }
+  .feedback-cta__bubble::after {
+    content: '';
+    position: absolute;
+    left: 26px;
+    bottom: -10px;
+    width: 0;
+    height: 0;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-top: 10px solid var(--burnt-orange);
+  }
+  .feedback-btn {
+    pointer-events: auto;
+    background: var(--mint);
+    color: var(--navy);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 11px 16px;
+    border: 3px solid var(--navy);
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.7px;
+    box-shadow: 0 4px 0 var(--navy);
+    transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+    margin-top: 10px;
+  }
+  .feedback-btn:hover { background: var(--mint-bright); }
+  .feedback-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 var(--navy);
+  }
+  @keyframes feedbackBob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+
+  /* Modal */
+  .feedback-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .feedback-modal.open { display: flex; }
+  .feedback-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(52, 65, 103, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .feedback-modal__panel {
+    position: relative;
+    width: min(720px, 92vw);
+    height: min(82vh, 860px);
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .feedback-modal__header {
+    background: var(--navy);
+    color: white;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .feedback-modal__title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .feedback-modal__close {
+    background: transparent;
+    color: white;
+    border: 2px solid rgba(255,255,255,0.4);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .feedback-modal__close:hover {
+    background: rgba(255,255,255,0.15);
+    border-color: white;
+  }
+  .feedback-modal__body {
+    flex: 1;
+    background: var(--hint-of-mint);
+    overflow: hidden;
+  }
+  .feedback-modal__body iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+
+  @media (max-width: 600px) {
+    .feedback-cta { top: 10px; left: 10px; }
+    .feedback-cta__bubble { font-size: 8px; padding: 7px 10px; }
+    .feedback-btn { font-size: 9px; padding: 9px 12px; }
+    .feedback-modal__panel { width: 96vw; height: 92vh; }
+  }
 </style>
 </head>
 <body>
+  <!-- Feedback CTA (top-left, fixed) -->
+  <div class="feedback-cta">
+    <div class="feedback-cta__bubble">GOT FEEDBACK?<br>SHARE IT&nbsp;↓</div>
+    <button class="feedback-btn" id="open-feedback" type="button">📝 SHARE FEEDBACK</button>
+  </div>
+
+  <!-- Feedback modal (hidden until opened) -->
+  <div class="feedback-modal" id="feedback-modal" aria-hidden="true" role="dialog" aria-label="Submit feedback">
+    <div class="feedback-modal__backdrop" data-feedback-close></div>
+    <div class="feedback-modal__panel">
+      <div class="feedback-modal__header">
+        <div class="feedback-modal__title">SHARE YOUR FEEDBACK</div>
+        <button class="feedback-modal__close" data-feedback-close aria-label="Close">✕</button>
+      </div>
+      <div class="feedback-modal__body">
+        <iframe id="feedback-iframe" class="clickup-embed clickup-dynamic-height" src="about:blank" data-real-src="https://forms.clickup.com/2579975/f/2eqg7-197652/EXEWO646LFHLGQ27MF" onwheel=""></iframe>
+      </div>
+    </div>
+  </div>
+
   <header>
     <h1>TRUSTEDSTAYS<br>DISTRIBUTION RUN</h1>
     <div class="subtitle">Acquire guests with your tractor beam · Stack rate codes &amp; accreditations · Unlock Amadeus GDS</div>
@@ -2198,6 +2359,49 @@
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(boot);
   else boot();
 })();
+</script>
+
+<!-- ===== Feedback modal logic + ClickUp embed loader ===== -->
+<script>
+  (function() {
+    var openBtn   = document.getElementById('open-feedback');
+    var modal     = document.getElementById('feedback-modal');
+    var iframe    = document.getElementById('feedback-iframe');
+    var ckLoaded  = false;
+    var formLoaded = false;
+
+    function openFeedback() {
+      // Lazy-load the form only when first opened
+      if (!formLoaded) {
+        iframe.src = iframe.dataset.realSrc;
+        formLoaded = true;
+      }
+      // Lazy-load ClickUp's embed resizer script
+      if (!ckLoaded) {
+        var s = document.createElement('script');
+        s.src = 'https://app-cdn.clickup.com/assets/js/forms-embed/v1.js';
+        s.async = true;
+        document.body.appendChild(s);
+        ckLoaded = true;
+      }
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+    function closeFeedback() {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    if (openBtn) openBtn.addEventListener('click', openFeedback);
+
+    document.querySelectorAll('[data-feedback-close]').forEach(function(el) {
+      el.addEventListener('click', closeFeedback);
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeFeedback();
+    });
+  })();
 </script>
 </body>
 </html>
